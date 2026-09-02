@@ -17,6 +17,8 @@ type Texts struct {
 	ReloadingSessions     string
 	LoadingPreview        string
 	LoadedPreviewMessages string
+	StatusSessions        string
+	StatusMatched         string
 	ClipboardUnavailable  string
 	CopiedSessionID       string
 	RecentUserMessages    string
@@ -32,12 +34,22 @@ type Texts struct {
 	FieldSession          string
 	FieldProject          string
 	FieldDirectory        string
+	FieldPathStatus       string
+	FieldMessageCount     string
+	FieldPartCount        string
+	FieldSize             string
+	FieldLargeSession     string
+	PathExists            string
+	PathMissing           string
+	Yes                   string
+	No                    string
 	FieldUpdated          string
 	FieldCreated          string
 	FieldModel            string
 	FieldAgent            string
 	FieldCost             string
 	FieldTokens           string
+	FieldResumeCommand    string
 	TokensFormat          string
 }
 
@@ -70,6 +82,8 @@ func NewTexts(lang string) Texts {
 			ReloadingSessions:     "正在重新加载会话...",
 			LoadingPreview:        "正在加载预览...",
 			LoadedPreviewMessages: "已加载 %d 条预览消息",
+			StatusSessions:        "%d 个会话",
+			StatusMatched:         "%d/%d 匹配",
 			ClipboardUnavailable:  "剪贴板不可用：%s",
 			CopiedSessionID:       "已复制 session id",
 			RecentUserMessages:    "最近用户消息",
@@ -77,14 +91,16 @@ func NewTexts(lang string) Texts {
 			ReadOnlyNotice:        "MVP 以只读方式运行，不会修改 OpenCode 数据。",
 			FooterBrowse:          "浏览",
 			FooterSearch:          "搜索",
-			FooterHelp:            "/ 搜索 | Enter 恢复 | p 预览 | y 复制 ID | ? 帮助 | q 退出",
+			FooterHelp:            "/ 搜索 | Enter 恢复 | p/Ctrl-P 预览 | y 复制 ID | ? 帮助 | q 退出",
 			ActionHint:            "Enter 恢复 | p 预览 | y 复制 ID",
 			HelpTitle:             "lazyOpencodeSession 帮助",
 			HelpLines: []string{
 				"q / Ctrl+C     退出",
 				"↑/k ↓/j        移动选择",
+				"搜索中 Ctrl-K/J 上下移动，j/k 仍输入文字",
+				"搜索中 Ctrl-P 预览当前会话",
 				"PageUp/Down    翻页",
-				"/              搜索元数据",
+				"/              搜索元数据，空格分隔多个关键词",
 				"Esc            清空搜索 / 关闭帮助",
 				"Enter          恢复选中会话",
 				"p              预览最近用户消息",
@@ -92,17 +108,27 @@ func NewTexts(lang string) Texts {
 				"r              重新加载会话",
 				"?              切换帮助",
 			},
-			FieldTitle:     "标题",
-			FieldSession:   "会话",
-			FieldProject:   "项目",
-			FieldDirectory: "目录",
-			FieldUpdated:   "更新",
-			FieldCreated:   "创建",
-			FieldModel:     "模型",
-			FieldAgent:     "代理",
-			FieldCost:      "费用",
-			FieldTokens:    "Token",
-			TokensFormat:   "输入 %d / 输出 %d / 推理 %d / 缓存 %d",
+			FieldTitle:         "标题",
+			FieldSession:       "会话",
+			FieldProject:       "项目",
+			FieldDirectory:     "目录",
+			FieldPathStatus:    "路径状态",
+			FieldMessageCount:  "消息数",
+			FieldPartCount:     "片段数",
+			FieldSize:          "大小",
+			FieldLargeSession:  "大型会话",
+			PathExists:         "存在",
+			PathMissing:        "不存在",
+			Yes:                "是",
+			No:                 "否",
+			FieldUpdated:       "更新",
+			FieldCreated:       "创建",
+			FieldModel:         "模型",
+			FieldAgent:         "代理",
+			FieldCost:          "费用",
+			FieldTokens:        "Token",
+			FieldResumeCommand: "恢复命令",
+			TokensFormat:       "输入 %d / 输出 %d / 推理 %d / 缓存 %d",
 		}
 	}
 
@@ -118,6 +144,8 @@ func NewTexts(lang string) Texts {
 		ReloadingSessions:     "reloading sessions...",
 		LoadingPreview:        "loading preview...",
 		LoadedPreviewMessages: "loaded %d preview messages",
+		StatusSessions:        "%d sessions",
+		StatusMatched:         "%d/%d matched",
 		ClipboardUnavailable:  "clipboard unavailable: %s",
 		CopiedSessionID:       "copied session id",
 		RecentUserMessages:    "Recent User Messages",
@@ -125,14 +153,16 @@ func NewTexts(lang string) Texts {
 		ReadOnlyNotice:        "MVP is read-only. It does not modify OpenCode data.",
 		FooterBrowse:          "browse",
 		FooterSearch:          "search",
-		FooterHelp:            "/ search | Enter resume | p preview | y copy id | ? help | q quit",
+		FooterHelp:            "/ search | Enter resume | p/Ctrl-P preview | y copy id | ? help | q quit",
 		ActionHint:            "Enter resume | p preview | y copy id",
 		HelpTitle:             "lazyOpencodeSession Help",
 		HelpLines: []string{
 			"q / Ctrl+C     Quit",
 			"↑/k ↓/j        Move selection",
+			"Search Ctrl-K/J Move; j/k still type text",
+			"Search Ctrl-P Preview current session",
 			"PageUp/Down    Jump list",
-			"/              Search metadata",
+			"/              Search metadata; split terms by spaces",
 			"Esc            Clear search / close help",
 			"Enter          Resume selected session",
 			"p              Preview recent user messages",
@@ -140,16 +170,26 @@ func NewTexts(lang string) Texts {
 			"r              Reload sessions",
 			"?              Toggle help",
 		},
-		FieldTitle:     "Title",
-		FieldSession:   "Session",
-		FieldProject:   "Project",
-		FieldDirectory: "Directory",
-		FieldUpdated:   "Updated",
-		FieldCreated:   "Created",
-		FieldModel:     "Model",
-		FieldAgent:     "Agent",
-		FieldCost:      "Cost",
-		FieldTokens:    "Tokens",
-		TokensFormat:   "in %d / out %d / reasoning %d / cache %d",
+		FieldTitle:         "Title",
+		FieldSession:       "Session",
+		FieldProject:       "Project",
+		FieldDirectory:     "Directory",
+		FieldPathStatus:    "Path Status",
+		FieldMessageCount:  "Messages",
+		FieldPartCount:     "Parts",
+		FieldSize:          "Size",
+		FieldLargeSession:  "Large Session",
+		PathExists:         "Exists",
+		PathMissing:        "Missing",
+		Yes:                "Yes",
+		No:                 "No",
+		FieldUpdated:       "Updated",
+		FieldCreated:       "Created",
+		FieldModel:         "Model",
+		FieldAgent:         "Agent",
+		FieldCost:          "Cost",
+		FieldTokens:        "Tokens",
+		FieldResumeCommand: "Resume Command",
+		TokensFormat:       "in %d / out %d / reasoning %d / cache %d",
 	}
 }

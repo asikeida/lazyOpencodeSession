@@ -3,6 +3,8 @@ package tui
 import (
 	"context"
 	"fmt"
+	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -14,10 +16,12 @@ import (
 )
 
 type Options struct {
-	Repo     opencode.Repository
-	Limit    int
-	Theme    string
-	Language string
+	Repo            opencode.Repository
+	Limit           int
+	Theme           string
+	Language        string
+	OpenCodeCommand string
+	DetailFields    map[string]bool
 }
 
 type Mode int
@@ -27,14 +31,22 @@ const (
 	ModeSearch
 )
 
+const largeSessionBytes = 10 * 1024 * 1024
+
 type Model struct {
 	repo       opencode.Repository
 	limit      int
+	opencode   string
+	fields     map[string]bool
 	styles     Styles
 	texts      Texts
 	width      int
 	height     int
 	sessions   []opencode.Session
+	stats      map[string]opencode.SessionStats
+	statsBusy  map[string]bool
+	matched    int
+	total      int
 	selected   int
 	offset     int
 	query      string
@@ -51,11 +63,18 @@ type Model struct {
 type sessionsLoadedMsg struct {
 	query    string
 	sessions []opencode.Session
+	matched  int
+	total    int
 }
 
 type previewLoadedMsg struct {
 	sessionID string
 	messages  []opencode.MessagePreview
+}
+
+type statsLoadedMsg struct {
+	sessionID string
+	stats     opencode.SessionStats
 }
 
 type errMsg struct {
@@ -67,12 +86,16 @@ func New(opts Options) Model {
 		opts.Limit = 500
 	}
 	return Model{
-		repo:    opts.Repo,
-		limit:   opts.Limit,
-		styles:  NewStyles(opts.Theme),
-		texts:   NewTexts(opts.Language),
-		loading: true,
-		status:  NewTexts(opts.Language).LoadingSessions,
+		repo:      opts.Repo,
+		limit:     opts.Limit,
+		opencode:  defaultString(opts.OpenCodeCommand, "opencode"),
+		fields:    normalizeDetailFields(opts.DetailFields),
+		stats:     map[string]opencode.SessionStats{},
+		statsBusy: map[string]bool{},
+		styles:    NewStyles(opts.Theme),
+		texts:     NewTexts(opts.Language),
+		loading:   true,
+		status:    NewTexts(opts.Language).LoadingSessions,
 	}
 }
 
@@ -96,13 +119,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.sessions = msg.sessions
+		m.matched = msg.matched
+		m.total = msg.total
 		m.loading = false
 		m.err = nil
 		if m.selected >= len(m.sessions) {
 			m.selected = max(0, len(m.sessions)-1)
 		}
 		m.ensureVisible()
-		m.status = fmt.Sprintf("%d sessions", len(m.sessions))
+		m.status = m.resultStatus()
+		return m, m.maybeLoadStats()
+	case statsLoadedMsg:
+		m.stats[msg.sessionID] = msg.stats
+		delete(m.statsBusy, msg.sessionID)
 		return m, nil
 	case previewLoadedMsg:
 		if msg.sessionID == m.currentID() {
@@ -147,18 +176,24 @@ func (m Model) handleKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		case "ctrl+c":
 			return m, tea.Quit
-		case "up":
+		case "up", "ctrl+k":
 			m.moveUp(1)
-			return m, nil
-		case "down":
+			return m, m.maybeLoadStats()
+		case "down", "ctrl+j":
 			m.moveDown(1)
+			return m, m.maybeLoadStats()
+		case "ctrl+p":
+			if id := m.currentID(); id != "" {
+				m.status = m.texts.LoadingPreview
+				return m, m.loadPreview(id)
+			}
 			return m, nil
 		case "pgup":
 			m.moveUp(m.visibleItems())
-			return m, nil
+			return m, m.maybeLoadStats()
 		case "pgdown":
 			m.moveDown(m.visibleItems())
-			return m, nil
+			return m, m.maybeLoadStats()
 		}
 		switch key.Type {
 		case tea.KeyBackspace:
@@ -208,16 +243,16 @@ func (m Model) handleKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, m.loadSessions()
 	case "up", "k":
 		m.moveUp(1)
-		return m, nil
+		return m, m.maybeLoadStats()
 	case "down", "j":
 		m.moveDown(1)
-		return m, nil
+		return m, m.maybeLoadStats()
 	case "pgup":
 		m.moveUp(m.visibleItems())
-		return m, nil
+		return m, m.maybeLoadStats()
 	case "pgdown":
 		m.moveDown(m.visibleItems())
-		return m, nil
+		return m, m.maybeLoadStats()
 	case "enter":
 		if id := m.currentID(); id != "" {
 			m.resumeID = id
@@ -283,14 +318,16 @@ func (m Model) renderSessions(width int, height int) string {
 			s := m.sessions[i]
 			prefix := "  "
 			style := m.styles.Base
+			matchStyle := m.styles.Match
 			if i == m.selected {
 				prefix = "> "
 				style = m.styles.Selected
+				matchStyle = m.styles.Selected.Copy().Foreground(lipgloss.Color("229")).Underline(true)
 			}
 			title := truncateWidth(s.Title, width-10)
-			lines = append(lines, style.Render(prefix+title))
+			lines = append(lines, style.Render(prefix)+highlightText(title, m.searchTerms(), style, matchStyle))
 			meta := fmt.Sprintf("  %s  %s", truncateWidth(s.Directory, width-18), formatShortTime(s.UpdatedAt))
-			lines = append(lines, m.styles.Muted.Render(meta))
+			lines = append(lines, highlightText(meta, m.searchTerms(), m.styles.Muted, m.styles.Match))
 		}
 	}
 	return box.Render(strings.Join(lines, "\n"))
@@ -305,20 +342,35 @@ func (m Model) renderDetails(width int, height int) string {
 	}
 
 	s := m.sessions[m.selected]
-	lines = append(lines,
-		field(m.texts.FieldTitle, s.Title),
-		field(m.texts.FieldSession, s.ID),
-		field(m.texts.FieldProject, s.ProjectID),
-		field(m.texts.FieldDirectory, s.Directory),
-		field(m.texts.FieldUpdated, formatFullTime(s.UpdatedAt)),
-		field(m.texts.FieldCreated, formatFullTime(s.CreatedAt)),
-		field(m.texts.FieldModel, emptyDash(s.Model)),
-		field(m.texts.FieldAgent, emptyDash(s.Agent)),
-		field(m.texts.FieldCost, fmt.Sprintf("$%.4f", s.Cost)),
-		field(m.texts.FieldTokens, fmt.Sprintf(m.texts.TokensFormat, s.TokensInput, s.TokensOutput, s.TokensReasoning, s.TokensCacheRead)),
-		"",
-		m.styles.Muted.Render(m.texts.ActionHint),
-	)
+	contentWidth := max(20, width-4)
+	m.appendDetailField(&lines, "title", m.texts.FieldTitle, s.Title, contentWidth)
+	m.appendDetailField(&lines, "session", m.texts.FieldSession, s.ID, contentWidth)
+	m.appendDetailField(&lines, "project", m.texts.FieldProject, s.ProjectID, contentWidth)
+	m.appendDetailField(&lines, "directory", m.texts.FieldDirectory, s.Directory, contentWidth)
+	m.appendDetailField(&lines, "path_status", m.texts.FieldPathStatus, m.pathStatusText(s.DirectoryExists), contentWidth)
+	m.appendDetailField(&lines, "message_count", m.texts.FieldMessageCount, m.statsField(s.ID, func(stats opencode.SessionStats) string {
+		return strconv.FormatInt(stats.MessageCount, 10)
+	}), contentWidth)
+	m.appendDetailField(&lines, "part_count", m.texts.FieldPartCount, m.statsField(s.ID, func(stats opencode.SessionStats) string {
+		return strconv.FormatInt(stats.PartCount, 10)
+	}), contentWidth)
+	m.appendDetailField(&lines, "size", m.texts.FieldSize, m.statsField(s.ID, func(stats opencode.SessionStats) string {
+		return formatBytes(stats.SizeBytes)
+	}), contentWidth)
+	m.appendDetailField(&lines, "large_session", m.texts.FieldLargeSession, m.statsField(s.ID, func(stats opencode.SessionStats) string {
+		if stats.SizeBytes >= largeSessionBytes {
+			return m.texts.Yes
+		}
+		return m.texts.No
+	}), contentWidth)
+	m.appendDetailField(&lines, "updated", m.texts.FieldUpdated, formatFullTime(s.UpdatedAt), contentWidth)
+	m.appendDetailField(&lines, "created", m.texts.FieldCreated, formatFullTime(s.CreatedAt), contentWidth)
+	m.appendDetailField(&lines, "model", m.texts.FieldModel, emptyDash(s.Model), contentWidth)
+	m.appendDetailField(&lines, "agent", m.texts.FieldAgent, emptyDash(s.Agent), contentWidth)
+	m.appendDetailField(&lines, "cost", m.texts.FieldCost, fmt.Sprintf("$%.4f", s.Cost), contentWidth)
+	m.appendDetailField(&lines, "tokens", m.texts.FieldTokens, fmt.Sprintf(m.texts.TokensFormat, s.TokensInput, s.TokensOutput, s.TokensReasoning, s.TokensCacheRead), contentWidth)
+	m.appendDetailField(&lines, "resume_command", m.texts.FieldResumeCommand, m.opencode+" --session "+s.ID, contentWidth)
+	lines = append(lines, "", m.styles.Muted.Render(m.texts.ActionHint))
 
 	if m.previewFor == s.ID {
 		lines = append(lines, "", m.styles.Accent.Render(m.texts.RecentUserMessages))
@@ -367,7 +419,19 @@ func (m Model) loadSessions() tea.Cmd {
 		if err != nil {
 			return errMsg{err: err}
 		}
-		return sessionsLoadedMsg{query: query, sessions: sessions}
+		annotateDirectoryExists(sessions)
+		matched, err := m.repo.CountSessions(ctx, opencode.SessionFilter{Query: query})
+		if err != nil {
+			return errMsg{err: err}
+		}
+		total := matched
+		if strings.TrimSpace(query) != "" {
+			total, err = m.repo.CountSessions(ctx, opencode.SessionFilter{})
+			if err != nil {
+				return errMsg{err: err}
+			}
+		}
+		return sessionsLoadedMsg{query: query, sessions: sessions, matched: matched, total: total}
 	}
 }
 
@@ -383,11 +447,131 @@ func (m Model) loadPreview(sessionID string) tea.Cmd {
 	}
 }
 
+func (m Model) loadStats(sessionID string) tea.Cmd {
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		stats, err := m.repo.SessionStats(ctx, sessionID)
+		if err != nil {
+			return errMsg{err: err}
+		}
+		return statsLoadedMsg{sessionID: sessionID, stats: stats}
+	}
+}
+
 func (m Model) currentID() string {
 	if m.selected < 0 || m.selected >= len(m.sessions) {
 		return ""
 	}
 	return m.sessions[m.selected].ID
+}
+
+func (m Model) resultStatus() string {
+	if strings.TrimSpace(m.query) == "" {
+		return fmt.Sprintf(m.texts.StatusSessions, m.total)
+	}
+	return fmt.Sprintf(m.texts.StatusMatched, m.matched, m.total)
+}
+
+func (m Model) searchTerms() []string {
+	return opencode.SearchTerms(m.query)
+}
+
+func (m Model) pathStatusText(exists bool) string {
+	if exists {
+		return m.texts.PathExists
+	}
+	return m.texts.PathMissing
+}
+
+func (m Model) statsField(sessionID string, format func(opencode.SessionStats) string) string {
+	stats, ok := m.stats[sessionID]
+	if !ok {
+		return m.texts.Loading
+	}
+	return format(stats)
+}
+
+func (m *Model) maybeLoadStats() tea.Cmd {
+	if !m.usesStats() {
+		return nil
+	}
+	id := m.currentID()
+	if id == "" || m.statsBusy[id] {
+		return nil
+	}
+	if _, ok := m.stats[id]; ok {
+		return nil
+	}
+	m.statsBusy[id] = true
+	return m.loadStats(id)
+}
+
+func (m Model) usesStats() bool {
+	return m.fieldEnabled("message_count") || m.fieldEnabled("part_count") || m.fieldEnabled("size") || m.fieldEnabled("large_session")
+}
+
+func (m Model) appendDetailField(lines *[]string, id string, label string, value string, width int) {
+	if !m.fieldEnabled(id) {
+		return
+	}
+	*lines = append(*lines, renderField(label, value, width)...)
+}
+
+func (m Model) fieldEnabled(id string) bool {
+	enabled, ok := m.fields[id]
+	return ok && enabled
+}
+
+func normalizeDetailFields(fields map[string]bool) map[string]bool {
+	defaults := map[string]bool{
+		"title":          true,
+		"session":        true,
+		"project":        true,
+		"directory":      true,
+		"path_status":    true,
+		"message_count":  false,
+		"part_count":     false,
+		"size":           false,
+		"large_session":  false,
+		"updated":        true,
+		"created":        true,
+		"model":          true,
+		"agent":          true,
+		"cost":           true,
+		"tokens":         true,
+		"resume_command": false,
+	}
+	for key, value := range fields {
+		defaults[key] = value
+	}
+	return defaults
+}
+
+func defaultString(value string, fallback string) string {
+	if value == "" {
+		return fallback
+	}
+	return value
+}
+
+func annotateDirectoryExists(sessions []opencode.Session) {
+	cache := make(map[string]bool)
+	for i := range sessions {
+		dir := sessions[i].Directory
+		if exists, ok := cache[dir]; ok {
+			sessions[i].DirectoryExists = exists
+			continue
+		}
+		exists := false
+		if dir != "" {
+			if info, err := os.Stat(dir); err == nil && info.IsDir() {
+				exists = true
+			}
+		}
+		cache[dir] = exists
+		sessions[i].DirectoryExists = exists
+	}
 }
 
 func (m *Model) moveUp(count int) {
@@ -425,10 +609,23 @@ func (m Model) visibleItems() int {
 	return max(1, (m.height-reserved)/2)
 }
 
-func field(name string, value string) string {
+func renderField(name string, value string, width int) []string {
 	label := name + ":"
-	padding := strings.Repeat(" ", max(1, 12-lipgloss.Width(label)))
-	return label + padding + value
+	labelWidth := 12
+	padding := strings.Repeat(" ", max(1, labelWidth-lipgloss.Width(label)))
+	prefix := label + padding
+	continuation := strings.Repeat(" ", lipgloss.Width(prefix))
+	valueWidth := max(8, width-lipgloss.Width(prefix))
+	wrapped := wrapAll(value, valueWidth)
+	if len(wrapped) == 0 {
+		return []string{prefix}
+	}
+	lines := make([]string, 0, len(wrapped))
+	lines = append(lines, prefix+wrapped[0])
+	for _, line := range wrapped[1:] {
+		lines = append(lines, continuation+line)
+	}
+	return lines
 }
 
 func emptyDash(value string) string {
@@ -456,6 +653,21 @@ func formatFullTime(t time.Time) string {
 	return t.Format("2006-01-02 15:04:05")
 }
 
+func formatBytes(size int64) string {
+	if size < 1024 {
+		return fmt.Sprintf("%d B", size)
+	}
+	units := []string{"KB", "MB", "GB", "TB"}
+	value := float64(size)
+	for _, unit := range units {
+		value /= 1024
+		if value < 1024 {
+			return fmt.Sprintf("%.1f %s", value, unit)
+		}
+	}
+	return fmt.Sprintf("%.1f PB", value/1024)
+}
+
 func truncateWidth(value string, width int) string {
 	if width <= 0 {
 		return ""
@@ -470,7 +682,50 @@ func truncateWidth(value string, width int) string {
 	return string(runes) + "..."
 }
 
+func highlightText(value string, terms []string, normal lipgloss.Style, match lipgloss.Style) string {
+	if len(terms) == 0 || value == "" {
+		return normal.Render(value)
+	}
+	lower := strings.ToLower(value)
+	var out strings.Builder
+	pos := 0
+	for pos < len(value) {
+		bestStart := -1
+		bestEnd := -1
+		for _, term := range terms {
+			idx := strings.Index(lower[pos:], term)
+			if idx < 0 {
+				continue
+			}
+			start := pos + idx
+			end := start + len(term)
+			if bestStart == -1 || start < bestStart || start == bestStart && end > bestEnd {
+				bestStart = start
+				bestEnd = end
+			}
+		}
+		if bestStart < 0 {
+			out.WriteString(normal.Render(value[pos:]))
+			break
+		}
+		if bestStart > pos {
+			out.WriteString(normal.Render(value[pos:bestStart]))
+		}
+		out.WriteString(match.Render(value[bestStart:bestEnd]))
+		pos = bestEnd
+	}
+	return out.String()
+}
+
 func wrap(value string, width int, maxLines int) []string {
+	lines := wrapAll(value, width)
+	if len(lines) > maxLines {
+		return lines[:maxLines]
+	}
+	return lines
+}
+
+func wrapAll(value string, width int) []string {
 	value = strings.TrimSpace(value)
 	if value == "" {
 		return nil
@@ -483,23 +738,17 @@ func wrap(value string, width int, maxLines int) []string {
 				lines = append(lines, line)
 				line = ""
 			}
-			if len(lines) >= maxLines {
-				return lines
-			}
 			continue
 		}
 		next := line + string(r)
 		if lipgloss.Width(next) > width && line != "" {
 			lines = append(lines, truncateWidth(line, width))
 			line = string(r)
-			if len(lines) >= maxLines {
-				return lines
-			}
 			continue
 		}
 		line = next
 	}
-	if line != "" && len(lines) < maxLines {
+	if line != "" {
 		lines = append(lines, truncateWidth(line, width))
 	}
 	return lines

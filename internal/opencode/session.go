@@ -8,6 +8,7 @@ type Session struct {
 	ParentID         string
 	Title            string
 	Directory        string
+	DirectoryExists  bool
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
 	Model            string
@@ -24,6 +25,12 @@ type MessagePreview struct {
 	ID        string
 	Text      string
 	CreatedAt time.Time
+}
+
+type SessionStats struct {
+	MessageCount int64
+	PartCount    int64
+	SizeBytes    int64
 }
 
 type SessionFilter struct {

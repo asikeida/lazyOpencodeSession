@@ -65,21 +65,8 @@ select
 from session
 where (parent_id is null or parent_id = '')`
 
-	args := []any{}
-	query := strings.TrimSpace(filter.Query)
-	if query != "" {
-		like := "%" + strings.ToLower(query) + "%"
-		base += `
-  and (
-    lower(id) like ?
-    or lower(project_id) like ?
-    or lower(title) like ?
-    or lower(directory) like ?
-    or lower(coalesce(model, '')) like ?
-    or lower(coalesce(agent, '')) like ?
-  )`
-		args = append(args, like, like, like, like, like, like)
-	}
+	where, args := metadataSearchWhere(filter.Query)
+	base += where
 	base += "\norder by time_updated desc\nlimit ?"
 	args = append(args, filter.Limit)
 
@@ -117,6 +104,39 @@ where (parent_id is null or parent_id = '')`
 		sessions = append(sessions, s)
 	}
 	return sessions, rows.Err()
+}
+
+func (r *SQLiteRepository) CountSessions(ctx context.Context, filter SessionFilter) (int, error) {
+	base := `
+select count(*)
+from session
+where (parent_id is null or parent_id = '')`
+	where, args := metadataSearchWhere(filter.Query)
+	base += where
+
+	var count int
+	if err := r.db.QueryRowContext(ctx, base, args...).Scan(&count); err != nil {
+		return 0, err
+	}
+	return count, nil
+}
+
+func (r *SQLiteRepository) SessionStats(ctx context.Context, sessionID string) (SessionStats, error) {
+	var stats SessionStats
+	err := r.db.QueryRowContext(ctx, `
+select
+  (select count(*) from message where session_id = ?),
+  (select count(*) from part where session_id = ?),
+  coalesce((select sum(length(data)) from message where session_id = ?), 0) +
+  coalesce((select sum(length(data)) from part where session_id = ?), 0)`, sessionID, sessionID, sessionID, sessionID).Scan(
+		&stats.MessageCount,
+		&stats.PartCount,
+		&stats.SizeBytes,
+	)
+	if err != nil {
+		return SessionStats{}, err
+	}
+	return stats, nil
 }
 
 func (r *SQLiteRepository) RecentUserMessages(ctx context.Context, sessionID string, limit int, maxChars int) ([]MessagePreview, error) {
@@ -176,6 +196,42 @@ func textFromPart(raw string) string {
 		return ""
 	}
 	return part.Text
+}
+
+func metadataSearchWhere(query string) (string, []any) {
+	terms := SearchTerms(query)
+	if len(terms) == 0 {
+		return "", nil
+	}
+	field := `lower(
+    coalesce(id, '') || ' ' ||
+    coalesce(project_id, '') || ' ' ||
+    coalesce(title, '') || ' ' ||
+    coalesce(directory, '') || ' ' ||
+    coalesce(model, '') || ' ' ||
+    coalesce(agent, '')
+  )`
+	parts := make([]string, 0, len(terms))
+	args := make([]any, 0, len(terms))
+	for _, term := range terms {
+		parts = append(parts, field+" like ?")
+		args = append(args, "%"+strings.ToLower(term)+"%")
+	}
+	return "\n  and " + strings.Join(parts, "\n  and "), args
+}
+
+func SearchTerms(query string) []string {
+	fields := strings.Fields(strings.ToLower(strings.TrimSpace(query)))
+	terms := make([]string, 0, len(fields))
+	seen := map[string]bool{}
+	for _, field := range fields {
+		if field == "" || seen[field] {
+			continue
+		}
+		seen[field] = true
+		terms = append(terms, field)
+	}
+	return terms
 }
 
 func millis(ms int64) time.Time {

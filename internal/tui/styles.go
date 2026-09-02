@@ -8,6 +8,7 @@ type Styles struct {
 	Accent   lipgloss.Style
 	Border   lipgloss.Style
 	Selected lipgloss.Style
+	Match    lipgloss.Style
 	Title    lipgloss.Style
 	Status   lipgloss.Style
 	Warning  lipgloss.Style
@@ -23,6 +24,7 @@ func NewStyles(theme string) Styles {
 			Accent:   lipgloss.NewStyle().Foreground(lipgloss.Color("110")).Bold(true),
 			Border:   lipgloss.NewStyle().BorderForeground(lipgloss.Color("238")),
 			Selected: lipgloss.NewStyle().Foreground(lipgloss.Color("15")).Background(lipgloss.Color("24")).Bold(true),
+			Match:    lipgloss.NewStyle().Foreground(lipgloss.Color("229")).Bold(true).Underline(true),
 			Title:    lipgloss.NewStyle().Foreground(lipgloss.Color("110")).Bold(true),
 			Status:   lipgloss.NewStyle().Foreground(lipgloss.Color("250")).Background(lipgloss.Color("236")),
 			Warning:  lipgloss.NewStyle().Foreground(lipgloss.Color("179")),
@@ -36,6 +38,7 @@ func NewStyles(theme string) Styles {
 		Accent:   lipgloss.NewStyle().Foreground(lipgloss.Color("75")).Bold(true),
 		Border:   lipgloss.NewStyle().BorderForeground(lipgloss.Color("240")),
 		Selected: lipgloss.NewStyle().Foreground(lipgloss.Color("15")).Background(lipgloss.Color("25")).Bold(true),
+		Match:    lipgloss.NewStyle().Foreground(lipgloss.Color("229")).Bold(true).Underline(true),
 		Title:    lipgloss.NewStyle().Foreground(lipgloss.Color("75")).Bold(true),
 		Status:   lipgloss.NewStyle().Foreground(lipgloss.Color("250")).Background(lipgloss.Color("238")),
 		Warning:  lipgloss.NewStyle().Foreground(lipgloss.Color("214")),
