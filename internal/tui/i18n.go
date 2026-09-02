@@ -5,6 +5,11 @@ import (
 	"strings"
 )
 
+type HelpLine struct {
+	Key         string
+	Description string
+}
+
 type Texts struct {
 	AppTitle              string
 	SessionsTitle         string
@@ -29,7 +34,7 @@ type Texts struct {
 	FooterHelp            string
 	ActionHint            string
 	HelpTitle             string
-	HelpLines             []string
+	HelpLines             []HelpLine
 	FieldTitle            string
 	FieldSession          string
 	FieldProject          string
@@ -94,19 +99,19 @@ func NewTexts(lang string) Texts {
 			FooterHelp:            "/ 搜索 | Enter 恢复 | p/Ctrl-P 预览 | y 复制 ID | ? 帮助 | q 退出",
 			ActionHint:            "Enter 恢复 | p 预览 | y 复制 ID",
 			HelpTitle:             "lazyOpencodeSession 帮助",
-			HelpLines: []string{
-				"q / Ctrl+C     退出",
-				"↑/k ↓/j        移动选择",
-				"搜索中 Ctrl-K/J 上下移动，j/k 仍输入文字",
-				"搜索中 Ctrl-P 预览当前会话",
-				"PageUp/Down    翻页",
-				"/              搜索元数据，空格分隔多个关键词",
-				"Esc            清空搜索 / 关闭帮助",
-				"Enter          恢复选中会话",
-				"p              预览最近用户消息",
-				"y              复制 session id",
-				"r              重新加载会话",
-				"?              切换帮助",
+			HelpLines: []HelpLine{
+				{Key: "q / Ctrl+C", Description: "退出"},
+				{Key: "↑/k ↓/j", Description: "移动选择"},
+				{Key: "搜索中 Ctrl-K/J", Description: "上下移动，j/k 仍输入文字"},
+				{Key: "搜索中 Ctrl-P", Description: "预览当前会话"},
+				{Key: "PageUp/Down", Description: "翻页"},
+				{Key: "/", Description: "搜索元数据，空格分隔多个关键词"},
+				{Key: "Esc", Description: "清空搜索 / 关闭帮助"},
+				{Key: "Enter", Description: "恢复选中会话"},
+				{Key: "p", Description: "预览最近用户消息"},
+				{Key: "y", Description: "复制 session id"},
+				{Key: "r", Description: "重新加载会话"},
+				{Key: "?", Description: "切换帮助"},
 			},
 			FieldTitle:         "标题",
 			FieldSession:       "会话",
@@ -156,19 +161,19 @@ func NewTexts(lang string) Texts {
 		FooterHelp:            "/ search | Enter resume | p/Ctrl-P preview | y copy id | ? help | q quit",
 		ActionHint:            "Enter resume | p preview | y copy id",
 		HelpTitle:             "lazyOpencodeSession Help",
-		HelpLines: []string{
-			"q / Ctrl+C     Quit",
-			"↑/k ↓/j        Move selection",
-			"Search Ctrl-K/J Move; j/k still type text",
-			"Search Ctrl-P Preview current session",
-			"PageUp/Down    Jump list",
-			"/              Search metadata; split terms by spaces",
-			"Esc            Clear search / close help",
-			"Enter          Resume selected session",
-			"p              Preview recent user messages",
-			"y              Copy session id",
-			"r              Reload sessions",
-			"?              Toggle help",
+		HelpLines: []HelpLine{
+			{Key: "q / Ctrl+C", Description: "Quit"},
+			{Key: "↑/k ↓/j", Description: "Move selection"},
+			{Key: "Search Ctrl-K/J", Description: "Move; j/k still type text"},
+			{Key: "Search Ctrl-P", Description: "Preview current session"},
+			{Key: "PageUp/Down", Description: "Jump list"},
+			{Key: "/", Description: "Search metadata; split terms by spaces"},
+			{Key: "Esc", Description: "Clear search / close help"},
+			{Key: "Enter", Description: "Resume selected session"},
+			{Key: "p", Description: "Preview recent user messages"},
+			{Key: "y", Description: "Copy session id"},
+			{Key: "r", Description: "Reload sessions"},
+			{Key: "?", Description: "Toggle help"},
 		},
 		FieldTitle:         "Title",
 		FieldSession:       "Session",

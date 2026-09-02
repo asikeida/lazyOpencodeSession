@@ -1,6 +1,10 @@
 package tui
 
-import "github.com/charmbracelet/lipgloss"
+import (
+	"strings"
+
+	"github.com/charmbracelet/lipgloss"
+)
 
 type Styles struct {
 	Base     lipgloss.Style
@@ -9,6 +13,7 @@ type Styles struct {
 	Border   lipgloss.Style
 	Selected lipgloss.Style
 	Match    lipgloss.Style
+	Panel    lipgloss.Style
 	Title    lipgloss.Style
 	Status   lipgloss.Style
 	Warning  lipgloss.Style
@@ -17,19 +22,20 @@ type Styles struct {
 }
 
 func NewStyles(theme string) Styles {
-	if theme == "dark" {
+	if strings.EqualFold(strings.TrimSpace(theme), "dark") {
 		return Styles{
 			Base:     lipgloss.NewStyle().Foreground(lipgloss.Color("252")),
 			Muted:    lipgloss.NewStyle().Foreground(lipgloss.Color("244")),
-			Accent:   lipgloss.NewStyle().Foreground(lipgloss.Color("110")).Bold(true),
-			Border:   lipgloss.NewStyle().BorderForeground(lipgloss.Color("238")),
-			Selected: lipgloss.NewStyle().Foreground(lipgloss.Color("15")).Background(lipgloss.Color("24")).Bold(true),
+			Accent:   lipgloss.NewStyle().Foreground(lipgloss.Color("86")).Bold(true),
+			Border:   lipgloss.NewStyle().BorderForeground(lipgloss.Color("61")),
+			Panel:    lipgloss.NewStyle().Background(lipgloss.Color("232")),
+			Selected: lipgloss.NewStyle().Foreground(lipgloss.Color("255")).Background(lipgloss.Color("57")).Bold(true),
 			Match:    lipgloss.NewStyle().Foreground(lipgloss.Color("229")).Bold(true).Underline(true),
-			Title:    lipgloss.NewStyle().Foreground(lipgloss.Color("110")).Bold(true),
-			Status:   lipgloss.NewStyle().Foreground(lipgloss.Color("250")).Background(lipgloss.Color("236")),
-			Warning:  lipgloss.NewStyle().Foreground(lipgloss.Color("179")),
+			Title:    lipgloss.NewStyle().Foreground(lipgloss.Color("86")).Bold(true),
+			Status:   lipgloss.NewStyle().Foreground(lipgloss.Color("255")).Background(lipgloss.Color("235")),
+			Warning:  lipgloss.NewStyle().Foreground(lipgloss.Color("221")),
 			Error:    lipgloss.NewStyle().Foreground(lipgloss.Color("203")).Bold(true),
-			Help:     lipgloss.NewStyle().Foreground(lipgloss.Color("250")).Background(lipgloss.Color("236")),
+			Help:     lipgloss.NewStyle().Foreground(lipgloss.Color("255")).Background(lipgloss.Color("235")),
 		}
 	}
 	return Styles{
@@ -37,6 +43,7 @@ func NewStyles(theme string) Styles {
 		Muted:    lipgloss.NewStyle().Foreground(lipgloss.Color("246")),
 		Accent:   lipgloss.NewStyle().Foreground(lipgloss.Color("75")).Bold(true),
 		Border:   lipgloss.NewStyle().BorderForeground(lipgloss.Color("240")),
+		Panel:    lipgloss.NewStyle(),
 		Selected: lipgloss.NewStyle().Foreground(lipgloss.Color("15")).Background(lipgloss.Color("25")).Bold(true),
 		Match:    lipgloss.NewStyle().Foreground(lipgloss.Color("229")).Bold(true).Underline(true),
 		Title:    lipgloss.NewStyle().Foreground(lipgloss.Color("75")).Bold(true),

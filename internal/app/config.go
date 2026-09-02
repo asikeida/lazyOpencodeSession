@@ -11,29 +11,72 @@ import (
 )
 
 const DefaultConfigTOML = `# lazyocs configuration
-# Path to OpenCode SQLite database. Leave empty to use ~/.local/share/opencode/opencode.db.
+# OpenCode SQLite database path. Default: ~/.local/share/opencode/opencode.db.
+# Leave empty to use the default path.
+# OpenCode SQLite 数据库路径。默认值：~/.local/share/opencode/opencode.db。
+# 留空表示使用默认路径。
 db = ""
+# UI language: auto, en, or zh-CN. Default: auto.
+# 界面语言：auto、en 或 zh-CN。默认值：auto。
 language = "auto"
+# Built-in color theme: default or dark. Default: default.
+# 内置颜色主题：default 或 dark。默认值：default。
 theme = "default"
+# Maximum number of sessions loaded into the list. Default: 500.
+# 会话列表最多加载的数量。默认值：500。
 limit = 500
+# OpenCode executable or command path used by Enter. Default: opencode.
+# 按 Enter 恢复会话时使用的 OpenCode 命令或路径。默认值：opencode。
 opencode = "opencode"
 
 [details.fields]
+# Session title. Default: true.
+# 会话标题。默认值：true。
 title = true
+# Session ID. Default: true.
+# 会话 ID。默认值：true。
 session = true
+# Project ID. Default: true.
+# 项目 ID。默认值：true。
 project = true
+# Session working directory. Default: true.
+# 会话工作目录。默认值：true。
 directory = true
+# Whether the session directory currently exists. Default: true.
+# 会话目录当前是否存在。默认值：true。
 path_status = true
+# Number of messages. Loaded lazily when enabled. Default: false.
+# 消息数量。启用后按需加载。默认值：false。
 message_count = false
+# Number of parts. Loaded lazily when enabled. Default: false.
+# 内容片段数量。启用后按需加载。默认值：false。
 part_count = false
+# Combined message and part payload size. Loaded lazily. Default: false.
+# 消息和片段数据总大小。启用后按需加载。默认值：false。
 size = false
+# Whether payload size is at least 10 MB. Loaded lazily. Default: false.
+# 数据总大小是否达到 10 MB。启用后按需加载。默认值：false。
 large_session = false
+# Last update time. Default: true.
+# 最后更新时间。默认值：true。
 updated = true
+# Creation time. Default: true.
+# 创建时间。默认值：true。
 created = true
+# Model information. Default: true.
+# 模型信息。默认值：true。
 model = true
+# Agent name. Default: true.
+# Agent 名称。默认值：true。
 agent = true
+# Session cost. Default: true.
+# 会话费用。默认值：true。
 cost = true
+# Token usage. Default: true.
+# Token 使用情况。默认值：true。
 tokens = true
+# Command used to resume the session. Default: false.
+# 恢复会话时使用的命令。默认值：false。
 resume_command = false
 `
 

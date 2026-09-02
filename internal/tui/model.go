@@ -2,8 +2,10 @@ package tui
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -298,7 +300,7 @@ func (m Model) View() string {
 }
 
 func (m Model) renderSessions(width int, height int) string {
-	box := lipgloss.NewStyle().Width(max(1, width-2)).Height(max(1, height-2)).Border(lipgloss.RoundedBorder()).Inherit(m.styles.Border)
+	box := lipgloss.NewStyle().Width(max(1, width-2)).Height(max(1, height-2)).Border(lipgloss.RoundedBorder()).Inherit(m.styles.Panel).Inherit(m.styles.Border)
 	lines := []string{m.styles.Title.Render(m.texts.AppTitle + " - " + m.texts.SessionsTitle)}
 	if m.query != "" || m.mode == ModeSearch {
 		prompt := "/ " + m.query
@@ -334,7 +336,7 @@ func (m Model) renderSessions(width int, height int) string {
 }
 
 func (m Model) renderDetails(width int, height int) string {
-	box := lipgloss.NewStyle().Width(max(1, width-2)).Height(max(1, height-2)).Border(lipgloss.RoundedBorder()).Inherit(m.styles.Border)
+	box := lipgloss.NewStyle().Width(max(1, width-2)).Height(max(1, height-2)).Border(lipgloss.RoundedBorder()).Inherit(m.styles.Panel).Inherit(m.styles.Border)
 	lines := []string{m.styles.Title.Render(m.texts.DetailsTitle)}
 	if len(m.sessions) == 0 || m.selected >= len(m.sessions) {
 		lines = append(lines, m.styles.Muted.Render(m.texts.SelectSession))
@@ -365,7 +367,7 @@ func (m Model) renderDetails(width int, height int) string {
 	}), contentWidth)
 	m.appendDetailField(&lines, "updated", m.texts.FieldUpdated, formatFullTime(s.UpdatedAt), contentWidth)
 	m.appendDetailField(&lines, "created", m.texts.FieldCreated, formatFullTime(s.CreatedAt), contentWidth)
-	m.appendDetailField(&lines, "model", m.texts.FieldModel, emptyDash(s.Model), contentWidth)
+	m.appendModelField(&lines, s.Model, contentWidth)
 	m.appendDetailField(&lines, "agent", m.texts.FieldAgent, emptyDash(s.Agent), contentWidth)
 	m.appendDetailField(&lines, "cost", m.texts.FieldCost, fmt.Sprintf("$%.4f", s.Cost), contentWidth)
 	m.appendDetailField(&lines, "tokens", m.texts.FieldTokens, fmt.Sprintf(m.texts.TokensFormat, s.TokensInput, s.TokensOutput, s.TokensReasoning, s.TokensCacheRead), contentWidth)
@@ -401,11 +403,11 @@ func (m Model) renderHelp() string {
 	text := strings.Join([]string{
 		m.texts.HelpTitle,
 		"",
-		strings.Join(m.texts.HelpLines, "\n"),
+		renderHelpLines(m.texts.HelpLines),
 		"",
 		m.texts.ReadOnlyNotice,
 	}, "\n")
-	box := lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).Padding(1, 2).Inherit(m.styles.Border)
+	box := lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).Padding(1, 2).Inherit(m.styles.Panel).Inherit(m.styles.Border)
 	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, box.Render(text))
 }
 
@@ -516,6 +518,80 @@ func (m Model) appendDetailField(lines *[]string, id string, label string, value
 		return
 	}
 	*lines = append(*lines, renderField(label, value, width)...)
+}
+
+func (m Model) appendModelField(lines *[]string, value string, width int) {
+	if !m.fieldEnabled("model") {
+		return
+	}
+	modelLines := formatModel(value)
+	if len(modelLines) <= 1 {
+		m.appendDetailField(lines, "model", m.texts.FieldModel, emptyDash(value), width)
+		return
+	}
+	*lines = append(*lines, m.texts.FieldModel+":")
+	indent := "  "
+	for _, line := range modelLines {
+		for _, wrapped := range wrapAll(line, max(8, width-lipgloss.Width(indent))) {
+			*lines = append(*lines, indent+wrapped)
+		}
+	}
+}
+
+func formatModel(value string) []string {
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(value), &fields); err != nil || len(fields) == 0 {
+		return []string{value}
+	}
+	keys := make([]string, 0, len(fields))
+	for _, key := range []string{"id", "providerID", "variant"} {
+		if _, ok := fields[key]; ok {
+			keys = append(keys, key)
+		}
+	}
+	var extra []string
+	for key := range fields {
+		if key != "id" && key != "providerID" && key != "variant" {
+			extra = append(extra, key)
+		}
+	}
+	sort.Strings(extra)
+	keys = append(keys, extra...)
+	if len(keys) == 0 {
+		return []string{value}
+	}
+	keyWidth := 0
+	keyLabels := make(map[string]string, len(keys))
+	for _, key := range keys {
+		label := `"` + key + `":`
+		keyLabels[key] = label
+		keyWidth = max(keyWidth, lipgloss.Width(label))
+	}
+	lines := make([]string, 0, len(keys))
+	for _, key := range keys {
+		value := fields[key]
+		var text string
+		if err := json.Unmarshal(value, &text); err == nil {
+			text = strconv.Quote(text)
+		} else {
+			text = string(value)
+		}
+		lines = append(lines, fmt.Sprintf("%-*s %s", keyWidth, keyLabels[key], text))
+	}
+	return lines
+}
+
+func renderHelpLines(lines []HelpLine) string {
+	keyWidth := 0
+	for _, line := range lines {
+		keyWidth = max(keyWidth, lipgloss.Width(line.Key))
+	}
+	result := make([]string, 0, len(lines))
+	for _, line := range lines {
+		padding := strings.Repeat(" ", keyWidth-lipgloss.Width(line.Key)+4)
+		result = append(result, line.Key+padding+line.Description)
+	}
+	return strings.Join(result, "\n")
 }
 
 func (m Model) fieldEnabled(id string) bool {
