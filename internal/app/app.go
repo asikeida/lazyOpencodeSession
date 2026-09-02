@@ -15,10 +15,12 @@ import (
 
 type Options struct {
 	DBPath          string
+	ConfigPath      string
 	Limit           int
 	Theme           string
 	Language        string
 	OpenCodeCommand string
+	DetailFields    map[string]bool
 }
 
 func Run(ctx context.Context, opts Options) error {
@@ -41,10 +43,12 @@ func Run(ctx context.Context, opts Options) error {
 	defer repo.Close()
 
 	model := lazytui.New(lazytui.Options{
-		Repo:     repo,
-		Limit:    opts.Limit,
-		Theme:    opts.Theme,
-		Language: opts.Language,
+		Repo:            repo,
+		Limit:           opts.Limit,
+		Theme:           opts.Theme,
+		Language:        opts.Language,
+		OpenCodeCommand: opts.OpenCodeCommand,
+		DetailFields:    opts.DetailFields,
 	})
 
 	program := tea.NewProgram(model, tea.WithAltScreen())
