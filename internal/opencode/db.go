@@ -16,10 +16,14 @@ type SQLiteRepository struct {
 	db *sql.DB
 }
 
-func Open(ctx context.Context, path string) (*SQLiteRepository, error) {
+func Open(ctx context.Context, path string, readOnly bool) (*SQLiteRepository, error) {
 	u := url.URL{Scheme: "file", Path: path}
 	q := u.Query()
-	q.Set("mode", "ro")
+	if readOnly {
+		q.Set("mode", "ro")
+	} else {
+		q.Set("mode", "rw")
+	}
 	q.Set("cache", "shared")
 	q.Add("_pragma", "busy_timeout(1000)")
 	u.RawQuery = q.Encode()
@@ -34,6 +38,21 @@ func Open(ctx context.Context, path string) (*SQLiteRepository, error) {
 		return nil, fmt.Errorf("failed to open OpenCode database: %w", err)
 	}
 	return &SQLiteRepository{db: db}, nil
+}
+
+func (r *SQLiteRepository) UpdateSessionTitle(ctx context.Context, sessionID string, title string) error {
+	result, err := r.db.ExecContext(ctx, `update session set title = ? where id = ?`, title, sessionID)
+	if err != nil {
+		return err
+	}
+	count, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if count != 1 {
+		return fmt.Errorf("session not found: %s", sessionID)
+	}
+	return nil
 }
 
 func (r *SQLiteRepository) Close() error {

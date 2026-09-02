@@ -1,10 +1,6 @@
 package tui
 
-import (
-	"strings"
-
-	"github.com/charmbracelet/lipgloss"
-)
+import "github.com/charmbracelet/lipgloss"
 
 type Styles struct {
 	Base     lipgloss.Style
@@ -21,35 +17,19 @@ type Styles struct {
 	Help     lipgloss.Style
 }
 
-func NewStyles(theme string) Styles {
-	if strings.EqualFold(strings.TrimSpace(theme), "dark") {
-		return Styles{
-			Base:     lipgloss.NewStyle().Foreground(lipgloss.Color("252")),
-			Muted:    lipgloss.NewStyle().Foreground(lipgloss.Color("244")),
-			Accent:   lipgloss.NewStyle().Foreground(lipgloss.Color("86")).Bold(true),
-			Border:   lipgloss.NewStyle().BorderForeground(lipgloss.Color("61")),
-			Panel:    lipgloss.NewStyle().Background(lipgloss.Color("232")),
-			Selected: lipgloss.NewStyle().Foreground(lipgloss.Color("255")).Background(lipgloss.Color("57")).Bold(true),
-			Match:    lipgloss.NewStyle().Foreground(lipgloss.Color("229")).Bold(true).Underline(true),
-			Title:    lipgloss.NewStyle().Foreground(lipgloss.Color("86")).Bold(true),
-			Status:   lipgloss.NewStyle().Foreground(lipgloss.Color("255")).Background(lipgloss.Color("235")),
-			Warning:  lipgloss.NewStyle().Foreground(lipgloss.Color("221")),
-			Error:    lipgloss.NewStyle().Foreground(lipgloss.Color("203")).Bold(true),
-			Help:     lipgloss.NewStyle().Foreground(lipgloss.Color("255")).Background(lipgloss.Color("235")),
-		}
-	}
+func NewStyles() Styles {
 	return Styles{
-		Base:     lipgloss.NewStyle().Foreground(lipgloss.Color("252")),
-		Muted:    lipgloss.NewStyle().Foreground(lipgloss.Color("246")),
-		Accent:   lipgloss.NewStyle().Foreground(lipgloss.Color("75")).Bold(true),
-		Border:   lipgloss.NewStyle().BorderForeground(lipgloss.Color("240")),
+		Base:     lipgloss.NewStyle(),
+		Muted:    lipgloss.NewStyle().Foreground(lipgloss.Color("8")),
+		Accent:   lipgloss.NewStyle().Foreground(lipgloss.Color("2")).Bold(true),
+		Border:   lipgloss.NewStyle().BorderForeground(lipgloss.Color("2")),
 		Panel:    lipgloss.NewStyle(),
-		Selected: lipgloss.NewStyle().Foreground(lipgloss.Color("15")).Background(lipgloss.Color("25")).Bold(true),
-		Match:    lipgloss.NewStyle().Foreground(lipgloss.Color("229")).Bold(true).Underline(true),
-		Title:    lipgloss.NewStyle().Foreground(lipgloss.Color("75")).Bold(true),
-		Status:   lipgloss.NewStyle().Foreground(lipgloss.Color("250")).Background(lipgloss.Color("238")),
-		Warning:  lipgloss.NewStyle().Foreground(lipgloss.Color("214")),
-		Error:    lipgloss.NewStyle().Foreground(lipgloss.Color("203")).Bold(true),
-		Help:     lipgloss.NewStyle().Foreground(lipgloss.Color("250")).Background(lipgloss.Color("238")),
+		Selected: lipgloss.NewStyle().Foreground(lipgloss.Color("15")).Background(lipgloss.Color("4")).Bold(true),
+		Match:    lipgloss.NewStyle().Foreground(lipgloss.Color("6")).Bold(true).Underline(true),
+		Title:    lipgloss.NewStyle().Foreground(lipgloss.Color("2")).Bold(true),
+		Status:   lipgloss.NewStyle().Foreground(lipgloss.Color("4")),
+		Warning:  lipgloss.NewStyle().Foreground(lipgloss.Color("3")),
+		Error:    lipgloss.NewStyle().Foreground(lipgloss.Color("1")).Bold(true),
+		Help:     lipgloss.NewStyle().Foreground(lipgloss.Color("4")),
 	}
 }

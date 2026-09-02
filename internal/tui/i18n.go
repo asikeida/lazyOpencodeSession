@@ -22,6 +22,12 @@ type Texts struct {
 	ReloadingSessions     string
 	LoadingPreview        string
 	LoadedPreviewMessages string
+	SavingTitle           string
+	EditingTitle          string
+	TitleSaved            string
+	TitleCancelled        string
+	TitleReadOnly         string
+	TitleEmpty            string
 	StatusSessions        string
 	StatusMatched         string
 	ClipboardUnavailable  string
@@ -87,17 +93,23 @@ func NewTexts(lang string) Texts {
 			ReloadingSessions:     "正在重新加载会话...",
 			LoadingPreview:        "正在加载预览...",
 			LoadedPreviewMessages: "已加载 %d 条预览消息",
+			SavingTitle:           "正在保存标题...",
+			EditingTitle:          "编辑标题：Enter 保存，Esc 取消",
+			TitleSaved:            "标题已保存",
+			TitleCancelled:        "已取消标题编辑",
+			TitleReadOnly:         "当前为只读模式，请使用 --write 后重试",
+			TitleEmpty:            "标题不能为空",
 			StatusSessions:        "%d 个会话",
 			StatusMatched:         "%d/%d 匹配",
 			ClipboardUnavailable:  "剪贴板不可用：%s",
 			CopiedSessionID:       "已复制 session id",
 			RecentUserMessages:    "最近用户消息",
 			NoTextPreview:         "没有找到文本预览",
-			ReadOnlyNotice:        "MVP 以只读方式运行，不会修改 OpenCode 数据。",
+			ReadOnlyNotice:        "默认以只读方式运行；修改标题需使用 --write。",
 			FooterBrowse:          "浏览",
 			FooterSearch:          "搜索",
 			FooterHelp:            "/ 搜索 | Enter 恢复 | p/Ctrl-P 预览 | y 复制 ID | ? 帮助 | q 退出",
-			ActionHint:            "Enter 恢复 | p 预览 | y 复制 ID",
+			ActionHint:            "e 编辑标题 | Enter 恢复 | p 预览 | y 复制 ID",
 			HelpTitle:             "lazyOpencodeSession 帮助",
 			HelpLines: []HelpLine{
 				{Key: "q / Ctrl+C", Description: "退出"},
@@ -108,6 +120,7 @@ func NewTexts(lang string) Texts {
 				{Key: "/", Description: "搜索元数据，空格分隔多个关键词"},
 				{Key: "Esc", Description: "清空搜索 / 关闭帮助"},
 				{Key: "Enter", Description: "恢复选中会话"},
+				{Key: "e", Description: "编辑当前会话标题"},
 				{Key: "p", Description: "预览最近用户消息"},
 				{Key: "y", Description: "复制 session id"},
 				{Key: "r", Description: "重新加载会话"},
@@ -149,17 +162,23 @@ func NewTexts(lang string) Texts {
 		ReloadingSessions:     "reloading sessions...",
 		LoadingPreview:        "loading preview...",
 		LoadedPreviewMessages: "loaded %d preview messages",
+		SavingTitle:           "saving title...",
+		EditingTitle:          "editing title: Enter save, Esc cancel",
+		TitleSaved:            "title saved",
+		TitleCancelled:        "title edit cancelled",
+		TitleReadOnly:         "read-only mode; restart with --write to edit titles",
+		TitleEmpty:            "title cannot be empty",
 		StatusSessions:        "%d sessions",
 		StatusMatched:         "%d/%d matched",
 		ClipboardUnavailable:  "clipboard unavailable: %s",
 		CopiedSessionID:       "copied session id",
 		RecentUserMessages:    "Recent User Messages",
 		NoTextPreview:         "No text preview found",
-		ReadOnlyNotice:        "MVP is read-only. It does not modify OpenCode data.",
+		ReadOnlyNotice:        "Read-only by default; use --write to edit session titles.",
 		FooterBrowse:          "browse",
 		FooterSearch:          "search",
 		FooterHelp:            "/ search | Enter resume | p/Ctrl-P preview | y copy id | ? help | q quit",
-		ActionHint:            "Enter resume | p preview | y copy id",
+		ActionHint:            "e edit title | Enter resume | p preview | y copy id",
 		HelpTitle:             "lazyOpencodeSession Help",
 		HelpLines: []HelpLine{
 			{Key: "q / Ctrl+C", Description: "Quit"},
@@ -170,6 +189,7 @@ func NewTexts(lang string) Texts {
 			{Key: "/", Description: "Search metadata; split terms by spaces"},
 			{Key: "Esc", Description: "Clear search / close help"},
 			{Key: "Enter", Description: "Resume selected session"},
+			{Key: "e", Description: "Edit current session title"},
 			{Key: "p", Description: "Preview recent user messages"},
 			{Key: "y", Description: "Copy session id"},
 			{Key: "r", Description: "Reload sessions"},

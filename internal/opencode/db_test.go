@@ -109,3 +109,34 @@ insert into part (id, message_id, session_id, data) values
 		t.Fatalf("unexpected stats: %#v", stats)
 	}
 }
+
+func TestUpdateSessionTitle(t *testing.T) {
+	db, err := sql.Open("sqlite", ":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	_, err = db.Exec(`
+create table session (
+  id text primary key,
+  title text not null
+);
+insert into session (id, title) values ('ses_1', 'old title');
+`)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	repo := &SQLiteRepository{db: db}
+	if err := repo.UpdateSessionTitle(context.Background(), "ses_1", "new title"); err != nil {
+		t.Fatal(err)
+	}
+	var title string
+	if err := db.QueryRow("select title from session where id = 'ses_1'").Scan(&title); err != nil {
+		t.Fatal(err)
+	}
+	if title != "new title" {
+		t.Fatalf("unexpected title: %q", title)
+	}
+}

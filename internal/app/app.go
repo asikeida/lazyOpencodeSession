@@ -17,10 +17,10 @@ type Options struct {
 	DBPath          string
 	ConfigPath      string
 	Limit           int
-	Theme           string
 	Language        string
 	OpenCodeCommand string
 	DetailFields    map[string]bool
+	ReadOnly        bool
 }
 
 func Run(ctx context.Context, opts Options) error {
@@ -36,7 +36,7 @@ func Run(ctx context.Context, opts Options) error {
 		return err
 	}
 
-	repo, err := opencode.Open(ctx, dbPath)
+	repo, err := opencode.Open(ctx, dbPath, opts.ReadOnly)
 	if err != nil {
 		return err
 	}
@@ -45,10 +45,10 @@ func Run(ctx context.Context, opts Options) error {
 	model := lazytui.New(lazytui.Options{
 		Repo:            repo,
 		Limit:           opts.Limit,
-		Theme:           opts.Theme,
 		Language:        opts.Language,
 		OpenCodeCommand: opts.OpenCodeCommand,
 		DetailFields:    opts.DetailFields,
+		ReadOnly:        opts.ReadOnly,
 	})
 
 	program := tea.NewProgram(model, tea.WithAltScreen())
@@ -77,7 +77,7 @@ func Check(ctx context.Context, opts Options) error {
 	if err != nil {
 		return err
 	}
-	repo, err := opencode.Open(ctx, dbPath)
+	repo, err := opencode.Open(ctx, dbPath, true)
 	if err != nil {
 		return err
 	}

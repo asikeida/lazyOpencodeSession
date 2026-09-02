@@ -16,10 +16,10 @@ func main() {
 	showVersion := flag.Bool("version", false, "print version")
 	check := flag.Bool("check", false, "check database access without launching TUI")
 	printConfig := flag.Bool("print-config", false, "print sample config")
+	write := flag.Bool("write", false, "allow writing session titles")
 	flag.StringVar(&cli.ConfigPath, "config", "", "path to lazyocs config file")
 	flag.StringVar(&cli.DBPath, "db", "", "path to OpenCode SQLite database")
 	flag.IntVar(&cli.Limit, "limit", 500, "maximum sessions to load")
-	flag.StringVar(&cli.Theme, "theme", "default", "theme name: default or dark")
 	flag.StringVar(&cli.Language, "language", "auto", "language: auto, en, or zh-CN")
 	flag.StringVar(&cli.OpenCodeCommand, "opencode", "opencode", "opencode command path")
 	flag.Parse()
@@ -40,6 +40,9 @@ func main() {
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
+	}
+	if *write {
+		opts.ReadOnly = false
 	}
 
 	if *check {

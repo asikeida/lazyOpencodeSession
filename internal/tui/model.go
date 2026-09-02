@@ -20,10 +20,10 @@ import (
 type Options struct {
 	Repo            opencode.Repository
 	Limit           int
-	Theme           string
 	Language        string
 	OpenCodeCommand string
 	DetailFields    map[string]bool
+	ReadOnly        bool
 }
 
 type Mode int
@@ -39,6 +39,7 @@ type Model struct {
 	repo       opencode.Repository
 	limit      int
 	opencode   string
+	readOnly   bool
 	fields     map[string]bool
 	styles     Styles
 	texts      Texts
@@ -57,6 +58,8 @@ type Model struct {
 	status     string
 	err        error
 	help       bool
+	titleEdit  bool
+	titleInput string
 	preview    []opencode.MessagePreview
 	previewFor string
 	resumeID   string
@@ -79,6 +82,11 @@ type statsLoadedMsg struct {
 	stats     opencode.SessionStats
 }
 
+type titleUpdatedMsg struct {
+	sessionID string
+	title     string
+}
+
 type errMsg struct {
 	err error
 }
@@ -91,10 +99,11 @@ func New(opts Options) Model {
 		repo:      opts.Repo,
 		limit:     opts.Limit,
 		opencode:  defaultString(opts.OpenCodeCommand, "opencode"),
+		readOnly:  opts.ReadOnly,
 		fields:    normalizeDetailFields(opts.DetailFields),
 		stats:     map[string]opencode.SessionStats{},
 		statsBusy: map[string]bool{},
-		styles:    NewStyles(opts.Theme),
+		styles:    NewStyles(),
 		texts:     NewTexts(opts.Language),
 		loading:   true,
 		status:    NewTexts(opts.Language).LoadingSessions,
@@ -135,6 +144,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.stats[msg.sessionID] = msg.stats
 		delete(m.statsBusy, msg.sessionID)
 		return m, nil
+	case titleUpdatedMsg:
+		for i := range m.sessions {
+			if m.sessions[i].ID == msg.sessionID {
+				m.sessions[i].Title = msg.title
+				break
+			}
+		}
+		m.titleEdit = false
+		m.titleInput = ""
+		m.status = m.texts.TitleSaved
+		return m, nil
 	case previewLoadedMsg:
 		if msg.sessionID == m.currentID() {
 			m.preview = msg.messages
@@ -158,6 +178,38 @@ func (m Model) handleKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		switch key.String() {
 		case "esc", "?", "q", "enter":
 			m.help = false
+		}
+		return m, nil
+	}
+
+	if m.titleEdit {
+		switch key.String() {
+		case "esc":
+			m.titleEdit = false
+			m.titleInput = ""
+			m.status = m.texts.TitleCancelled
+			return m, nil
+		case "enter":
+			if strings.TrimSpace(m.titleInput) == "" {
+				m.status = m.texts.TitleEmpty
+				return m, nil
+			}
+			id := m.currentID()
+			m.status = m.texts.SavingTitle
+			return m, m.saveTitle(id, strings.TrimSpace(m.titleInput))
+		case "ctrl+c":
+			return m, tea.Quit
+		}
+		switch key.Type {
+		case tea.KeyBackspace:
+			if len([]rune(m.titleInput)) > 0 {
+				runes := []rune(m.titleInput)
+				m.titleInput = string(runes[:len(runes)-1])
+			}
+		case tea.KeyRunes:
+			m.titleInput += string(key.Runes)
+		case tea.KeySpace:
+			m.titleInput += " "
 		}
 		return m, nil
 	}
@@ -238,6 +290,18 @@ func (m Model) handleKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "/":
 		m.mode = ModeSearch
 		m.status = m.texts.SearchSessions
+		return m, nil
+	case "e":
+		if m.currentID() == "" {
+			return m, nil
+		}
+		if m.readOnly {
+			m.status = m.texts.TitleReadOnly
+			return m, nil
+		}
+		m.titleEdit = true
+		m.titleInput = m.sessions[m.selected].Title
+		m.status = m.texts.EditingTitle
 		return m, nil
 	case "r":
 		m.loading = true
@@ -345,7 +409,11 @@ func (m Model) renderDetails(width int, height int) string {
 
 	s := m.sessions[m.selected]
 	contentWidth := max(20, width-4)
-	m.appendDetailField(&lines, "title", m.texts.FieldTitle, s.Title, contentWidth)
+	title := s.Title
+	if m.titleEdit && m.currentID() == s.ID {
+		title = m.titleInput + "_"
+	}
+	m.appendDetailField(&lines, "title", m.texts.FieldTitle, title, contentWidth)
 	m.appendDetailField(&lines, "session", m.texts.FieldSession, s.ID, contentWidth)
 	m.appendDetailField(&lines, "project", m.texts.FieldProject, s.ProjectID, contentWidth)
 	m.appendDetailField(&lines, "directory", m.texts.FieldDirectory, s.Directory, contentWidth)
@@ -458,6 +526,17 @@ func (m Model) loadStats(sessionID string) tea.Cmd {
 			return errMsg{err: err}
 		}
 		return statsLoadedMsg{sessionID: sessionID, stats: stats}
+	}
+}
+
+func (m Model) saveTitle(sessionID string, title string) tea.Cmd {
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		if err := m.repo.UpdateSessionTitle(ctx, sessionID, title); err != nil {
+			return errMsg{err: err}
+		}
+		return titleUpdatedMsg{sessionID: sessionID, title: title}
 	}
 }
 

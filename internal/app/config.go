@@ -19,15 +19,15 @@ db = ""
 # UI language: auto, en, or zh-CN. Default: auto.
 # 界面语言：auto、en 或 zh-CN。默认值：auto。
 language = "auto"
-# Built-in color theme: default or dark. Default: default.
-# 内置颜色主题：default 或 dark。默认值：default。
-theme = "default"
 # Maximum number of sessions loaded into the list. Default: 500.
 # 会话列表最多加载的数量。默认值：500。
 limit = 500
 # OpenCode executable or command path used by Enter. Default: opencode.
 # 按 Enter 恢复会话时使用的 OpenCode 命令或路径。默认值：opencode。
 opencode = "opencode"
+# Database write protection. Default: true.
+# 数据库写保护。默认值：true。改标题前可使用 --write 或设为 false。
+read_only = true
 
 [details.fields]
 # Session title. Default: true.
@@ -83,9 +83,9 @@ resume_command = false
 type rawConfig struct {
 	DB       string     `toml:"db"`
 	Language string     `toml:"language"`
-	Theme    string     `toml:"theme"`
 	Limit    int        `toml:"limit"`
 	OpenCode string     `toml:"opencode"`
+	ReadOnly *bool      `toml:"read_only"`
 	Details  rawDetails `toml:"details"`
 }
 
@@ -114,9 +114,6 @@ func ResolveOptions(cli Options, cliSet map[string]bool) (Options, error) {
 	if cliSet["limit"] {
 		opts.Limit = cli.Limit
 	}
-	if cliSet["theme"] {
-		opts.Theme = cli.Theme
-	}
 	if cliSet["language"] {
 		opts.Language = cli.Language
 	}
@@ -129,9 +126,6 @@ func ResolveOptions(cli Options, cliSet map[string]bool) (Options, error) {
 
 	if opts.Limit <= 0 {
 		opts.Limit = 500
-	}
-	if opts.Theme == "" {
-		opts.Theme = "default"
 	}
 	if opts.Language == "" {
 		opts.Language = "auto"
@@ -149,10 +143,10 @@ func ResolveOptions(cli Options, cliSet map[string]bool) (Options, error) {
 func DefaultOptions() Options {
 	return Options{
 		Limit:           500,
-		Theme:           "default",
 		Language:        "auto",
 		OpenCodeCommand: "opencode",
 		DetailFields:    DefaultDetailFields(),
+		ReadOnly:        true,
 	}
 }
 
@@ -245,14 +239,14 @@ func mergeConfig(opts *Options, cfg rawConfig) {
 	if cfg.Language != "" {
 		opts.Language = cfg.Language
 	}
-	if cfg.Theme != "" {
-		opts.Theme = cfg.Theme
-	}
 	if cfg.Limit > 0 {
 		opts.Limit = cfg.Limit
 	}
 	if cfg.OpenCode != "" {
 		opts.OpenCodeCommand = cfg.OpenCode
+	}
+	if cfg.ReadOnly != nil {
+		opts.ReadOnly = *cfg.ReadOnly
 	}
 	if len(cfg.Details.Fields) > 0 {
 		fields := DefaultDetailFields()

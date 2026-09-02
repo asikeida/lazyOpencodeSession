@@ -6,7 +6,7 @@ The command name is `lazyocs`.
 
 ## MVP Features
 
-- Read OpenCode SQLite database in read-only mode.
+- Read OpenCode SQLite database in read-only mode by default.
 - List root OpenCode sessions by recent update time.
 - Search session metadata with `/`.
 - Multi-term search with AND semantics, for example `windows iso` matches sessions containing both words.
@@ -14,8 +14,9 @@ The command name is `lazyocs`.
 - Show whether the session directory still exists.
 - Lazy-load recent user message preview with `p`.
 - Resume selected session with `Enter`.
+- Edit the selected session title with `e` when write mode is enabled.
 - Copy selected session id with `y`.
-- Built-in `default` and `dark` themes.
+- Uses a terminal-friendly default color scheme inspired by lazygit.
 - Chinese UI with `--language auto|en|zh-CN`.
 - Auto-create the default config file at `~/.config/lazyocs/config.toml` on first run.
 - Configurable details fields.
@@ -38,12 +39,6 @@ Use a custom OpenCode database:
 ./lazyocs --db ~/.local/share/opencode/opencode.db
 ```
 
-Use the dark theme:
-
-```bash
-./lazyocs --theme dark
-```
-
 Use Chinese UI:
 
 ```bash
@@ -57,6 +52,14 @@ Check database access without launching the TUI:
 ```bash
 ./lazyocs --check --limit 5
 ```
+
+Enable title editing explicitly:
+
+```bash
+./lazyocs --write
+```
+
+Alternatively set `read_only = false` in `~/.config/lazyocs/config.toml`.
 
 Print a sample config:
 
@@ -93,15 +96,15 @@ db = ""
 # UI language: auto, en, or zh-CN. Default: auto.
 # 界面语言：auto、en 或 zh-CN。默认值：auto。
 language = "auto"
-# Built-in color theme: default or dark. Default: default.
-# 内置颜色主题：default 或 dark。默认值：default。
-theme = "default"
 # Maximum number of sessions loaded into the list. Default: 500.
 # 会话列表最多加载的数量。默认值：500。
 limit = 500
 # OpenCode executable or command path used by Enter. Default: opencode.
 # 按 Enter 恢复会话时使用的 OpenCode 命令或路径。默认值：opencode。
 opencode = "opencode"
+# Database write protection. Default: true.
+# 数据库写保护。默认值：true。修改标题前可使用 --write 或设为 false。
+read_only = true
 
 [details.fields]
 # Session title. Default: true.
@@ -156,9 +159,7 @@ resume_command = false
 
 Use `true` to show a field and `false` to hide it. `1` and `0` are also accepted.
 
-`theme` currently supports the built-in `default` and `dark` presets. The dark preset uses a visibly darker panel background, border, status bar, and selection color. Restart `lazyocs` after changing the theme because styles are loaded at startup.
-
-Unlike lazygit, which exposes individual `gui.theme` color attributes in its YAML configuration, the current lazyocs version uses named presets only. This keeps the first configuration format small; per-color theme overrides can be added later without changing the details-field configuration.
+The default color scheme follows lazygit's general terminal style: green accent/border, blue selected line, blue options text, and terminal-provided background. Colors are currently built in rather than user-configurable.
 
 The current details panel supports these fields:
 
@@ -193,6 +194,7 @@ Ctrl-J/K       Move selection while typing search text
 Ctrl-P         Preview current session while typing search text
 Esc            Clear search
 Enter          Resume selected session
+e              Edit current session title (requires --write)
 p              Preview recent user messages
 y              Copy session id
 r              Reload sessions
@@ -201,7 +203,7 @@ r              Reload sessions
 
 ## Safety
 
-The MVP opens the OpenCode database with `mode=ro`. It does not modify session data.
+The default mode opens the OpenCode database with `mode=ro` and does not modify session data. Title editing requires `--write` or `read_only = false`; write mode uses SQLite `mode=rw` and never creates a new database.
 
 ## Search Behavior
 
