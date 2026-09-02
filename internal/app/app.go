@@ -1,0 +1,136 @@
+package app
+
+import (
+	"context"
+	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
+
+	tea "github.com/charmbracelet/bubbletea"
+
+	"github.com/asikeida/lazyOpencodeSession/internal/opencode"
+	lazytui "github.com/asikeida/lazyOpencodeSession/internal/tui"
+)
+
+type Options struct {
+	DBPath          string
+	Limit           int
+	Theme           string
+	Language        string
+	OpenCodeCommand string
+}
+
+func Run(ctx context.Context, opts Options) error {
+	if opts.Limit <= 0 {
+		opts.Limit = 500
+	}
+	if opts.OpenCodeCommand == "" {
+		opts.OpenCodeCommand = "opencode"
+	}
+
+	dbPath, err := resolveDBPath(opts.DBPath)
+	if err != nil {
+		return err
+	}
+
+	repo, err := opencode.Open(ctx, dbPath)
+	if err != nil {
+		return err
+	}
+	defer repo.Close()
+
+	model := lazytui.New(lazytui.Options{
+		Repo:     repo,
+		Limit:    opts.Limit,
+		Theme:    opts.Theme,
+		Language: opts.Language,
+	})
+
+	program := tea.NewProgram(model, tea.WithAltScreen())
+	finalModel, err := program.Run()
+	if err != nil {
+		return err
+	}
+
+	m, ok := finalModel.(lazytui.Model)
+	if !ok || m.ResumeSessionID() == "" {
+		return nil
+	}
+
+	cmd := exec.CommandContext(ctx, opts.OpenCodeCommand, "--session", m.ResumeSessionID())
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
+
+func Check(ctx context.Context, opts Options) error {
+	if opts.Limit <= 0 {
+		opts.Limit = 5
+	}
+	dbPath, err := resolveDBPath(opts.DBPath)
+	if err != nil {
+		return err
+	}
+	repo, err := opencode.Open(ctx, dbPath)
+	if err != nil {
+		return err
+	}
+	defer repo.Close()
+
+	sessions, err := repo.ListSessions(ctx, opencode.SessionFilter{Limit: opts.Limit})
+	if err != nil {
+		return err
+	}
+	fmt.Printf("database: %s\n", dbPath)
+	fmt.Printf("loaded sessions: %d\n", len(sessions))
+	for _, s := range sessions {
+		fmt.Printf("%s\t%s\t%s\n", s.ID, s.UpdatedAt.Format("2006-01-02 15:04"), s.Title)
+	}
+	return nil
+}
+
+func resolveDBPath(path string) (string, error) {
+	if env := os.Getenv("LAZYOCS_DB"); path == "" && env != "" {
+		path = env
+	}
+	if path == "" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return "", err
+		}
+		path = filepath.Join(home, ".local", "share", "opencode", "opencode.db")
+	}
+
+	expanded, err := expandHome(path)
+	if err != nil {
+		return "", err
+	}
+	abs, err := filepath.Abs(expanded)
+	if err != nil {
+		return "", err
+	}
+	info, err := os.Stat(abs)
+	if err != nil {
+		return "", fmt.Errorf("OpenCode database not found: %s", abs)
+	}
+	if info.IsDir() {
+		return "", fmt.Errorf("database path is a directory: %s", abs)
+	}
+	return abs, nil
+}
+
+func expandHome(path string) (string, error) {
+	if path == "~" {
+		return os.UserHomeDir()
+	}
+	if len(path) >= 2 && path[:2] == "~/" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return "", err
+		}
+		return filepath.Join(home, path[2:]), nil
+	}
+	return path, nil
+}
