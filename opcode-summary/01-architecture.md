@@ -171,9 +171,9 @@ service 负责业务规则，Repository 仍只负责持久化。
 
 ### 7.1 `model.go` 职责过多
 
-[`internal/tui/model.go`](../internal/tui/model.go) 当前同时包含状态、键盘状态机、异步命令、布局、浮层和格式化函数，已经超过 1000 行。
+TUI 已完成同 package 职责拆分：`model.go` 只保留状态和消息定义，`update.go` 处理事件，`commands.go` 承载异步任务，`view.go`、`dialog.go` 和 `format.go` 分别负责主视图、浮层与格式化。
 
-建议先做零行为变化的同包拆分：
+当前零行为变化的同包结构：
 
 ```text
 model.go       Model 和消息类型
@@ -186,9 +186,9 @@ format.go      时间、宽度、换行和高亮
 
 这比立即引入新 package 更安全，也能显著降低代码阅读成本。
 
-### 7.2 通用 `errMsg` 信息不足
+### 7.2 已完成：操作级错误消息
 
-所有异步失败都进入同一个 `errMsg`，调用者无法准确知道哪个操作失败，也就难以清理对应 busy 状态。更合理的是按操作定义失败消息，并携带 session ID。
+异步失败已经按 list、preview、stats、save、delete 和 clipboard 拆成独立消息，并携带 query 或 session ID。`Update` 因而可以只清理对应操作的 busy 状态，也能忽略已经过期的 query 和非当前 session 消息。
 
 ### 7.3 领域模型混入文件系统状态
 

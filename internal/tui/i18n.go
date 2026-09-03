@@ -42,6 +42,7 @@ type Texts struct {
 	StatusSessions        string
 	StatusMatched         string
 	ClipboardUnavailable  string
+	CopyingSessionID      string
 	CopiedSessionID       string
 	RecentUserMessages    string
 	NoTextPreview         string
@@ -125,6 +126,7 @@ func NewTexts(lang string) Texts {
 			StatusSessions:        "%d 个会话",
 			StatusMatched:         "%d/%d 匹配",
 			ClipboardUnavailable:  "剪贴板不可用：%s",
+			CopyingSessionID:      "正在复制 session id...",
 			CopiedSessionID:       "已复制 session id",
 			RecentUserMessages:    "最近用户消息",
 			NoTextPreview:         "没有找到文本预览",
@@ -207,6 +209,7 @@ func NewTexts(lang string) Texts {
 		StatusSessions:        "%d sessions",
 		StatusMatched:         "%d/%d matched",
 		ClipboardUnavailable:  "clipboard unavailable: %s",
+		CopyingSessionID:      "copying session id...",
 		CopiedSessionID:       "copied session id",
 		RecentUserMessages:    "Recent User Messages",
 		NoTextPreview:         "No text preview found",

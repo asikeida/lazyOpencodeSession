@@ -114,15 +114,15 @@ xsel --clipboard --input
 
 没有可用工具时，TUI 会显示 session ID，让用户仍然可以手工复制。
 
-当前实现存在一个重要问题：`platform.Copy` 在 TUI 主事件处理中同步执行，并调用 `cmd.Wait()`。部分 `xclip` 模式可能长期保持进程，导致 UI 冻结。
+当前实现已将 `platform.Copy` 从 TUI 主事件处理路径移入异步 `tea.Cmd`，并使用带两秒超时的 `exec.CommandContext` 控制外部进程。即使剪贴板工具不退出，UI 仍然可以继续处理按键和重绘。
 
-建议改造为：
+当前调用链：
 
 ```text
 handleKey
  -> copySessionID tea.Cmd
  -> platform.Copy
- -> clipboardCopiedMsg / clipboardFailedMsg
+ -> clipboardCopiedMsg / clipboardCopyFailedMsg
  -> Update 状态栏
 ```
 
@@ -138,7 +138,7 @@ handleKey
 | TUI 异步操作 | 写入状态栏，部分操作保留浮层 |
 | 剪贴板不可用 | 状态栏显示 ID 作为降级结果 |
 
-目前的通用 `errMsg` 会丢失操作上下文。正式版本应定义可识别的错误类别，并给出面向用户的处理建议，例如：
+TUI 已使用操作级失败消息保留 query 或 session ID，使各操作能够精确恢复 loading、busy 和弹窗状态。后续仍应把底层错误进一步映射为面向用户的处理建议，例如：
 
 - 数据库被占用：稍后重试或退出正在写入的 OpenCode。
 - 数据库版本不兼容：升级 lazyocs 或以只读模式运行。
@@ -153,7 +153,8 @@ handleKey
 | --- | --- |
 | [`config_test.go`](../internal/app/config_test.go) | 配置读取、CLI 优先级、默认配置创建、只读设置 |
 | [`db_test.go`](../internal/opencode/db_test.go) | AND 搜索、统计、标题修改、递归级联删除 |
-| [`model_test.go`](../internal/tui/model_test.go) | 帮助对齐、模型格式化、时间、浮层、删除错误解锁 |
+| [`model_test.go`](../internal/tui/model_test.go) | 帮助对齐、模型格式化、时间、浮层、各操作错误恢复、异步复制调度 |
+| [`clipboard_unix_test.go`](../internal/platform/clipboard_unix_test.go) | 剪贴板文本传递、命令超时、工具缺失 |
 
 当前验证命令：
 
@@ -175,11 +176,11 @@ go build -o lazyocs ./cmd/lazyocs
 
 覆盖率数字不是目标本身，但它反映出关键缺口集中在 TUI 状态转换、正式数据库打开路径、预览查询和平台适配。
 
-## 9. 推荐增加的测试
+## 9. 测试进展
 
-### 9.1 SQLite 集成测试
+### 9.1 已完成：SQLite 集成测试
 
-使用 `t.TempDir()` 创建文件型 SQLite 数据库，并通过正式 `Open()` 打开，验证：
+测试使用 `t.TempDir()` 创建文件型 SQLite 数据库，并通过正式 `Open()` 打开，已经验证：
 
 - `mode=ro` 确实拒绝更新。
 - `mode=rw` 不会创建不存在的数据库。

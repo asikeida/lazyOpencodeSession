@@ -67,8 +67,9 @@
 | [`02-tui-state-machine.md`](./02-tui-state-machine.md) | Bubble Tea 状态机、消息机制、浮层渲染和键盘交互 |
 | [`03-sqlite-safety-and-performance.md`](./03-sqlite-safety-and-performance.md) | SQLite 连接、查询、懒加载、级联删除和性能策略 |
 | [`04-engineering-foundations.md`](./04-engineering-foundations.md) | 配置、国际化、平台适配、测试现状和代码阅读索引 |
-| [`05-production-roadmap.md`](./05-production-roadmap.md) | 上线风险、优先级、CI/CD、兼容性与发布计划 |
+| [`05-production-roadmap.md`](./05-production-roadmap.md) | 上线风险、优先级、持续集成、兼容性与发布计划 |
 | [`06-popup-border-alignment.md`](./06-popup-border-alignment.md) | 浮层边框错位根因、Lazygit 对比、cell buffer 修复方案与验收标准 |
+| [`07-production-hardening-before-after.md`](./07-production-hardening-before-after.md) | 上线前七项稳定性工作的用途、Before/After 对照、验收标准和面试讲法 |
 | [`mvp-design.md`](./mvp-design.md) | 最初的产品定位、MVP 范围和早期技术选型 |
 
 ## 架构概览
@@ -96,4 +97,4 @@ flowchart TD
 
 ## 当前状态说明
 
-项目当前已经具备完整的本地 MVP 使用路径，但正式公开发布前仍应补齐搜索 debounce、异步剪贴板、数据库 schema 检查、删除影响范围展示和 CI/CD。这些内容不是被隐藏的缺陷，而是明确记录在演进计划中的工程边界。
+项目当前已经具备完整的本地 MVP 使用路径，并已完成异步剪贴板、操作级错误恢复、搜索 debounce、数据库 schema 能力检查、正式连接集成测试、TUI 职责拆分和最小 CI。下一阶段重点是删除影响范围展示、可选备份和首个版本发布材料。

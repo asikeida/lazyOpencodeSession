@@ -213,10 +213,10 @@ where id in (select id from descendants);
 
 同一 SQL 语句具备原子性：不会出现只删除一半 session 树的正常提交状态。message、part 和其他外键关联数据由 SQLite `ON DELETE CASCADE` 处理。
 
-当前已经完成递归去重，仍需要补强正式连接路径的外键测试：
+当前已经完成递归去重和正式连接路径外键测试：
 
 1. 递归 CTE 使用 `union` 去重，损坏数据库中的 parent 环也能收敛，并已有回归测试。
-2. 删除测试还应通过正式 `Open()` 创建 Repository，验证 DSN 中的 `foreign_keys(ON)` 确实生效，而不是只在测试里手动开启 pragma。
+2. 文件型集成测试通过正式 `Open()` 创建 Repository，已经验证 DSN 中的 `foreign_keys(ON)`、真实级联删除和只读写保护。
 
 ## 9. 数据安全策略
 
@@ -232,7 +232,7 @@ where id in (select id from descendants);
 
 lazyocs 依赖的是 OpenCode 内部 SQLite schema，而不是稳定公开协议。这是项目最大的长期风险。
 
-建议 `Open()` 后执行：
+`Open()` 现在会执行：
 
 ```sql
 pragma table_info(session);
@@ -240,13 +240,14 @@ pragma foreign_key_list(message);
 pragma foreign_key_list(part);
 ```
 
-并按能力划分兼容等级：
+并按能力记录兼容结果：
 
 | 等级 | 条件 | 行为 |
 | --- | --- | --- |
-| Read compatible | 列表所需字段存在 | 允许浏览和搜索 |
-| Preview compatible | message/part 关系和 JSON 数据可识别 | 允许预览 |
-| Write compatible | 标题字段、parent 关系和级联外键符合预期 | 允许修改和删除 |
+| Browse | 当前列表 SQL 所需 session 字段存在 | 允许启动、浏览和搜索 |
+| Stats / Preview | message/part 所需关系和字段存在 | 允许对应读取操作 |
+| Rename | session 的 id/title 字段存在 | 允许修改标题 |
+| Delete | parent 关系和两级级联外键符合预期 | 允许删除，否则 fail closed |
 
 这样即使 OpenCode 升级，工具也能给出明确错误，而不是把底层的 `no such column` 直接暴露给用户。
 
@@ -254,8 +255,8 @@ pragma foreign_key_list(part);
 
 推荐按投入产出排序：
 
-1. 搜索增加 80-150ms debounce。
-2. 使用操作类型消息取消或忽略过期查询。
+1. 已完成：搜索增加 100ms debounce。
+2. 已完成：使用操作类型消息忽略过期查询和精确恢复失败状态。
 3. 为启动、搜索、预览和统计建立 benchmark。
 4. 目录存在检查改为只处理可见项或选中项。
 5. session 数量真正达到瓶颈后，再考虑 sidecar FTS 和分页。

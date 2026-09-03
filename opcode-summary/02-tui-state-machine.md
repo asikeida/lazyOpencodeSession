@@ -84,7 +84,7 @@ func (m Model) loadPreview(sessionID string) tea.Cmd {
 
         messages, err := m.repo.RecentUserMessages(ctx, sessionID, 5, 500)
         if err != nil {
-            return errMsg{err: err}
+            return previewLoadFailedMsg{sessionID: sessionID, err: err}
         }
         return previewLoadedMsg{sessionID: sessionID, messages: messages}
     }
@@ -97,9 +97,9 @@ func (m Model) loadPreview(sessionID string) tea.Cmd {
 2. 结果是不可变消息，统一由 `Update` 更新状态。
 3. 每个查询有超时，不会无限占用连接。
 
-搜索结果还带有发起时的 query。`sessionsLoadedMsg` 回来后会比较 `msg.query` 和当前 `m.query`，旧查询结果不会覆盖新输入。这是处理异步乱序的代次校验。
+搜索结果还带有发起时的 query。`sessionsLoadedMsg` 回来后会比较 `msg.query` 和当前 `m.query`，旧查询结果不会覆盖新输入。这是处理异步乱序的有效性校验。
 
-当前还缺少输入 debounce。虽然旧结果会被丢弃，但快速输入仍会产生多次无意义 SQL。后续应在输入后等待约 100ms，再针对仍然有效的 query 发起查询。
+搜索输入现已增加 100ms debounce。每次文字输入和退格都会递增 `searchVersion`，只有版本仍然最新的 `searchDebounceMsg` 才会发起 SQL；`Enter` 会立即提交待处理查询，`Esc` 会立即清空并查询全部会话。
 
 ## 5. 列表与响应式布局
 
@@ -180,13 +180,13 @@ windows iso
 
 ## 9. 当前需要改进的地方
 
-### 9.1 错误消息应类型化
+### 9.1 已完成：操作级错误消息
 
-通用 `errMsg` 无法表达是 list、preview、stats、save 还是 delete 失败。建议每个有独立 busy 状态的操作使用自己的失败消息。
+通用 `errMsg` 已拆分为 list、preview、stats、save、delete 和 clipboard 对应的失败消息。每个分支只恢复自己负责的 loading、busy、弹窗和状态栏，过期 query 或非当前 session 的失败消息不会覆盖当前状态。
 
-### 9.2 剪贴板必须异步
+### 9.2 已完成：异步剪贴板
 
-当前复制操作仍在按键处理路径同步执行外部命令。它应该变成 `copySessionID tea.Cmd`，通过 `clipboardCopiedMsg` 或 `clipboardFailedMsg` 回到 `Update`。
+复制操作已从按键处理路径移入 `copySessionID tea.Cmd`，通过 `clipboardCopiedMsg` 或 `clipboardCopyFailedMsg` 回到 `Update`。系统命令由带两秒超时的 context 控制，不再占用 TUI 事件循环。
 
 ### 9.3 标题保存需要独立 busy 状态
 

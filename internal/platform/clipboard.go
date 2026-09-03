@@ -1,11 +1,13 @@
 package platform
 
 import (
+	"context"
 	"errors"
 	"os/exec"
+	"strings"
 )
 
-func Copy(text string) error {
+func Copy(ctx context.Context, text string) error {
 	commands := [][]string{
 		{"wl-copy"},
 		{"xclip", "-selection", "clipboard"},
@@ -15,24 +17,15 @@ func Copy(text string) error {
 		if _, err := exec.LookPath(spec[0]); err != nil {
 			continue
 		}
-		cmd := exec.Command(spec[0], spec[1:]...)
-		stdin, err := cmd.StdinPipe()
-		if err != nil {
+		cmd := exec.CommandContext(ctx, spec[0], spec[1:]...)
+		cmd.Stdin = strings.NewReader(text)
+		if err := cmd.Run(); err != nil {
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
 			return err
 		}
-		if err := cmd.Start(); err != nil {
-			return err
-		}
-		_, writeErr := stdin.Write([]byte(text))
-		closeErr := stdin.Close()
-		waitErr := cmd.Wait()
-		if writeErr != nil {
-			return writeErr
-		}
-		if closeErr != nil {
-			return closeErr
-		}
-		return waitErr
+		return nil
 	}
 	return errors.New("clipboard tool not found")
 }

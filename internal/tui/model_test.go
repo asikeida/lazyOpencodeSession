@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/charmbracelet/x/cellbuf"
@@ -244,13 +245,180 @@ func TestDeleteDialogShowsTargetAndConfirmationKeys(t *testing.T) {
 }
 
 func TestDeleteErrorUnlocksConfirmationDialog(t *testing.T) {
-	model := Model{deleteConfirm: true, deleteBusy: true}
-	updated, _ := model.Update(errMsg{err: errors.New("delete failed")})
+	model := Model{
+		deleteConfirm: true,
+		deleteBusy:    true,
+		sessions:      []opencode.Session{{ID: "ses_example"}},
+	}
+	updated, _ := model.Update(sessionDeleteFailedMsg{sessionID: "ses_example", err: errors.New("delete failed")})
 	got := updated.(Model)
 	if got.deleteBusy {
 		t.Fatal("delete dialog stayed locked after an error")
 	}
 	if !got.deleteConfirm {
 		t.Fatal("delete dialog should remain open so the user can retry or cancel")
+	}
+	if got.status != "delete failed" {
+		t.Fatalf("status = %q, want operation error", got.status)
+	}
+}
+
+func TestStatsErrorUnlocksOnlyFailedSession(t *testing.T) {
+	model := Model{
+		sessions:  []opencode.Session{{ID: "ses_example"}},
+		statsBusy: map[string]bool{"ses_example": true, "ses_other": true},
+	}
+	updated, _ := model.Update(statsLoadFailedMsg{sessionID: "ses_example", err: errors.New("stats failed")})
+	got := updated.(Model)
+	if got.statsBusy["ses_example"] {
+		t.Fatal("failed session stayed locked after stats error")
+	}
+	if !got.statsBusy["ses_other"] {
+		t.Fatal("unrelated session loading state was cleared")
+	}
+	if got.err != nil {
+		t.Fatalf("detail error became a fatal list error: %v", got.err)
+	}
+	if got.status != "stats failed" {
+		t.Fatalf("status = %q, want operation error", got.status)
+	}
+}
+
+func TestTitleErrorKeepsEditorOpen(t *testing.T) {
+	model := Model{
+		titleEdit:  true,
+		titleInput: "new title",
+		sessions:   []opencode.Session{{ID: "ses_example"}},
+	}
+	updated, _ := model.Update(titleUpdateFailedMsg{sessionID: "ses_example", err: errors.New("save failed")})
+	got := updated.(Model)
+	if !got.titleEdit || got.titleInput != "new title" {
+		t.Fatalf("title editor state was lost after save error: edit=%v input=%q", got.titleEdit, got.titleInput)
+	}
+	if got.status != "save failed" {
+		t.Fatalf("status = %q, want operation error", got.status)
+	}
+}
+
+func TestStaleSessionsErrorDoesNotReplaceCurrentResults(t *testing.T) {
+	model := Model{query: "new", loading: true, status: "loading"}
+	updated, _ := model.Update(sessionsLoadFailedMsg{query: "old", err: errors.New("old query failed")})
+	got := updated.(Model)
+	if !got.loading || got.err != nil || got.status != "loading" {
+		t.Fatalf("stale error changed current state: loading=%v err=%v status=%q", got.loading, got.err, got.status)
+	}
+}
+
+func TestCurrentSessionsErrorStopsLoading(t *testing.T) {
+	wantErr := errors.New("list failed")
+	model := Model{query: "current", loading: true}
+	updated, _ := model.Update(sessionsLoadFailedMsg{query: "current", err: wantErr})
+	got := updated.(Model)
+	if got.loading || !errors.Is(got.err, wantErr) || got.status != wantErr.Error() {
+		t.Fatalf("current list error was not applied: loading=%v err=%v status=%q", got.loading, got.err, got.status)
+	}
+}
+
+func TestPreviewErrorOnlyAffectsCurrentSession(t *testing.T) {
+	model := Model{sessions: []opencode.Session{{ID: "ses_current"}}, status: "unchanged"}
+	updated, _ := model.Update(previewLoadFailedMsg{sessionID: "ses_other", err: errors.New("stale preview")})
+	got := updated.(Model)
+	if got.status != "unchanged" {
+		t.Fatalf("stale preview error changed status: %q", got.status)
+	}
+	updated, _ = got.Update(previewLoadFailedMsg{sessionID: "ses_current", err: errors.New("preview failed")})
+	got = updated.(Model)
+	if got.status != "preview failed" {
+		t.Fatalf("current preview error was not shown: %q", got.status)
+	}
+}
+
+func TestCopyKeyReturnsAsyncCommand(t *testing.T) {
+	model := Model{
+		sessions: []opencode.Session{{ID: "ses_example"}},
+		texts:    NewTexts("en"),
+	}
+	updated, cmd := model.handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'y'}})
+	got := updated.(Model)
+	if cmd == nil {
+		t.Fatal("copy key did not return an asynchronous command")
+	}
+	if got.status != got.texts.CopyingSessionID {
+		t.Fatalf("status = %q, want copying status", got.status)
+	}
+}
+
+func TestClipboardMessagesUpdateStatus(t *testing.T) {
+	model := Model{texts: NewTexts("en")}
+	updated, _ := model.Update(clipboardCopiedMsg{})
+	got := updated.(Model)
+	if got.status != got.texts.CopiedSessionID {
+		t.Fatalf("success status = %q", got.status)
+	}
+	updated, _ = got.Update(clipboardCopyFailedMsg{sessionID: "ses_example", err: errors.New("copy failed")})
+	got = updated.(Model)
+	if !strings.Contains(got.status, "ses_example") {
+		t.Fatalf("failure status does not expose fallback ID: %q", got.status)
+	}
+}
+
+func TestSearchDebounceOnlyLoadsLatestVersion(t *testing.T) {
+	model := Model{mode: ModeSearch, texts: NewTexts("en")}
+	updated, firstCmd := model.handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}})
+	first := updated.(Model)
+	if firstCmd == nil || first.query != "a" || !first.searchPending {
+		t.Fatalf("first key did not schedule debounce: query=%q pending=%v", first.query, first.searchPending)
+	}
+
+	updated, secondCmd := first.handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'b'}})
+	second := updated.(Model)
+	if secondCmd == nil || second.query != "ab" || second.searchVersion <= first.searchVersion {
+		t.Fatalf("second key did not replace debounce: query=%q version=%d", second.query, second.searchVersion)
+	}
+
+	updated, staleCmd := second.Update(searchDebounceMsg{version: first.searchVersion})
+	afterStale := updated.(Model)
+	if staleCmd != nil || !afterStale.searchPending {
+		t.Fatal("stale debounce message started a query")
+	}
+
+	updated, currentCmd := afterStale.Update(searchDebounceMsg{version: second.searchVersion})
+	afterCurrent := updated.(Model)
+	if currentCmd == nil || afterCurrent.searchPending {
+		t.Fatal("current debounce message did not start the latest query")
+	}
+}
+
+func TestSearchEnterFlushesPendingQuery(t *testing.T) {
+	model := Model{
+		mode:          ModeSearch,
+		query:         "opencode",
+		searchVersion: 3,
+		searchPending: true,
+	}
+	updated, cmd := model.handleKey(tea.KeyMsg{Type: tea.KeyEnter})
+	got := updated.(Model)
+	if got.mode != ModeBrowse || got.searchPending || cmd == nil {
+		t.Fatalf("enter did not flush pending search: mode=%v pending=%v cmd=%v", got.mode, got.searchPending, cmd != nil)
+	}
+	if got.searchVersion != 4 {
+		t.Fatalf("version = %d, want pending timer invalidated", got.searchVersion)
+	}
+}
+
+func TestSearchEscapeClearsImmediatelyAndInvalidatesDebounce(t *testing.T) {
+	model := Model{
+		mode:          ModeSearch,
+		query:         "opencode",
+		searchVersion: 7,
+		searchPending: true,
+	}
+	updated, cmd := model.handleKey(tea.KeyMsg{Type: tea.KeyEsc})
+	got := updated.(Model)
+	if got.mode != ModeBrowse || got.query != "" || got.searchPending || cmd == nil {
+		t.Fatalf("escape did not immediately clear search: mode=%v query=%q pending=%v cmd=%v", got.mode, got.query, got.searchPending, cmd != nil)
+	}
+	if got.searchVersion != 8 {
+		t.Fatalf("version = %d, want pending timer invalidated", got.searchVersion)
 	}
 }

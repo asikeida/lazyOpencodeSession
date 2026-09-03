@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/url"
 	"strings"
@@ -13,7 +14,17 @@ import (
 )
 
 type SQLiteRepository struct {
-	db *sql.DB
+	db     *sql.DB
+	compat SchemaCompatibility
+}
+
+type SchemaCompatibility struct {
+	Browse  bool
+	Stats   bool
+	Preview bool
+	Rename  bool
+	Delete  bool
+	Issues  []string
 }
 
 func Open(ctx context.Context, path string, readOnly bool) (*SQLiteRepository, error) {
@@ -38,10 +49,22 @@ func Open(ctx context.Context, path string, readOnly bool) (*SQLiteRepository, e
 		db.Close()
 		return nil, fmt.Errorf("failed to open OpenCode database: %w", err)
 	}
-	return &SQLiteRepository{db: db}, nil
+	compat, err := inspectSchema(ctx, db)
+	if err != nil {
+		db.Close()
+		return nil, fmt.Errorf("failed to inspect OpenCode database schema: %w", err)
+	}
+	if !compat.Browse {
+		db.Close()
+		return nil, fmt.Errorf("incompatible OpenCode database schema: %s", strings.Join(compat.Issues, "; "))
+	}
+	return &SQLiteRepository{db: db, compat: compat}, nil
 }
 
 func (r *SQLiteRepository) UpdateSessionTitle(ctx context.Context, sessionID string, title string) error {
+	if !r.compat.Rename {
+		return errors.New("OpenCode database schema does not support safe title updates")
+	}
 	result, err := r.db.ExecContext(ctx, `update session set title = ? where id = ?`, title, sessionID)
 	if err != nil {
 		return err
@@ -57,6 +80,9 @@ func (r *SQLiteRepository) UpdateSessionTitle(ctx context.Context, sessionID str
 }
 
 func (r *SQLiteRepository) DeleteSession(ctx context.Context, sessionID string) error {
+	if !r.compat.Delete {
+		return errors.New("OpenCode database schema does not have the required delete cascades")
+	}
 	result, err := r.db.ExecContext(ctx, `
 with recursive descendants(id) as (
   select id from session where id = ?
@@ -79,6 +105,104 @@ delete from session where id in (select id from descendants)`, sessionID)
 
 func (r *SQLiteRepository) Close() error {
 	return r.db.Close()
+}
+
+func (r *SQLiteRepository) Compatibility() SchemaCompatibility {
+	return r.compat
+}
+
+func inspectSchema(ctx context.Context, db *sql.DB) (SchemaCompatibility, error) {
+	session, err := tableColumns(ctx, db, "session")
+	if err != nil {
+		return SchemaCompatibility{}, err
+	}
+	message, err := tableColumns(ctx, db, "message")
+	if err != nil {
+		return SchemaCompatibility{}, err
+	}
+	part, err := tableColumns(ctx, db, "part")
+	if err != nil {
+		return SchemaCompatibility{}, err
+	}
+
+	browseColumns := []string{"id", "project_id", "parent_id", "title", "directory", "time_created", "time_updated", "model", "agent", "cost", "tokens_input", "tokens_output", "tokens_reasoning", "tokens_cache_read", "tokens_cache_write"}
+	missingBrowse := missingColumns(session, browseColumns)
+	compat := SchemaCompatibility{
+		Browse:  len(missingBrowse) == 0,
+		Stats:   hasColumns(message, "session_id", "data") && hasColumns(part, "session_id", "data"),
+		Preview: hasColumns(message, "id", "session_id", "data", "time_created") && hasColumns(part, "id", "message_id", "data", "time_created"),
+		Rename:  hasColumns(session, "id", "title"),
+	}
+	if len(missingBrowse) > 0 {
+		compat.Issues = append(compat.Issues, "missing session columns: "+strings.Join(missingBrowse, ", "))
+	}
+
+	messageCascade, err := hasDeleteCascade(ctx, db, "message", "session_id", "session", "id")
+	if err != nil {
+		return SchemaCompatibility{}, err
+	}
+	partCascade, err := hasDeleteCascade(ctx, db, "part", "message_id", "message", "id")
+	if err != nil {
+		return SchemaCompatibility{}, err
+	}
+	compat.Delete = hasColumns(session, "id", "parent_id") && messageCascade && partCascade
+	if !compat.Delete {
+		compat.Issues = append(compat.Issues, "required session/message/part delete cascades are missing")
+	}
+	return compat, nil
+}
+
+func tableColumns(ctx context.Context, db *sql.DB, table string) (map[string]bool, error) {
+	rows, err := db.QueryContext(ctx, "pragma table_info("+table+")")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	columns := map[string]bool{}
+	for rows.Next() {
+		var cid int
+		var name, columnType string
+		var notNull, primaryKey int
+		var defaultValue any
+		if err := rows.Scan(&cid, &name, &columnType, &notNull, &defaultValue, &primaryKey); err != nil {
+			return nil, err
+		}
+		columns[name] = true
+	}
+	return columns, rows.Err()
+}
+
+func hasColumns(columns map[string]bool, required ...string) bool {
+	return len(missingColumns(columns, required)) == 0
+}
+
+func missingColumns(columns map[string]bool, required []string) []string {
+	missing := make([]string, 0)
+	for _, column := range required {
+		if !columns[column] {
+			missing = append(missing, column)
+		}
+	}
+	return missing
+}
+
+func hasDeleteCascade(ctx context.Context, db *sql.DB, table, from, targetTable, targetColumn string) (bool, error) {
+	rows, err := db.QueryContext(ctx, "pragma foreign_key_list("+table+")")
+	if err != nil {
+		return false, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id, seq int
+		var referencedTable, sourceColumn, referencedColumn, onUpdate, onDelete, match string
+		if err := rows.Scan(&id, &seq, &referencedTable, &sourceColumn, &referencedColumn, &onUpdate, &onDelete, &match); err != nil {
+			return false, err
+		}
+		if sourceColumn == from && referencedTable == targetTable && referencedColumn == targetColumn && strings.EqualFold(onDelete, "cascade") {
+			return true, nil
+		}
+	}
+	return false, rows.Err()
 }
 
 func (r *SQLiteRepository) ListSessions(ctx context.Context, filter SessionFilter) ([]Session, error) {
@@ -163,6 +287,9 @@ where (parent_id is null or parent_id = '')`
 }
 
 func (r *SQLiteRepository) SessionStats(ctx context.Context, sessionID string) (SessionStats, error) {
+	if !r.compat.Stats {
+		return SessionStats{}, errors.New("OpenCode database schema does not support session statistics")
+	}
 	var stats SessionStats
 	err := r.db.QueryRowContext(ctx, `
 select
@@ -181,6 +308,9 @@ select
 }
 
 func (r *SQLiteRepository) RecentUserMessages(ctx context.Context, sessionID string, limit int, maxChars int) ([]MessagePreview, error) {
+	if !r.compat.Preview {
+		return nil, errors.New("OpenCode database schema does not support message previews")
+	}
 	if limit <= 0 {
 		limit = 5
 	}

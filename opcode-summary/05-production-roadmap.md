@@ -16,11 +16,11 @@
 
 | 项目 | 当前问题 | 验收标准 |
 | --- | --- | --- |
-| 异步剪贴板 | 外部命令可能阻塞 TUI | 复制通过 `tea.Cmd` 执行，状态通过消息回流 |
-| stats 错误恢复 | 失败后 `statsBusy` 可能不释放 | 超时或 SQL 错误后可以再次加载 |
-| 搜索 debounce | 每个字符触发多次 SQL | 80-150ms 内只执行最后一次有效查询 |
-| Schema 检查 | OpenCode 升级可能导致裸 SQL 错误 | 启动时输出兼容等级，写入必须 fail closed |
-| 外键集成测试 | 当前删除测试绕过正式 `Open()` | 自动验证生产 DSN 的 FK 和只读行为 |
+| 异步剪贴板 | 已完成：外部命令已移入带超时的 `tea.Cmd` | 复制通过 `tea.Cmd` 执行，状态通过消息回流 |
+| stats 错误恢复 | 已完成：失败消息会释放对应 `statsBusy` | 超时或 SQL 错误后可以再次加载 |
+| 搜索 debounce | 已完成：使用 100ms debounce 和版本校验 | 80-150ms 内只执行最后一次有效查询 |
+| Schema 检查 | 已完成：启动检查五项能力，危险写操作 fail closed | 启动时输出兼容等级，写入必须 fail closed |
+| 外键集成测试 | 已完成：测试正式 `Open()`、FK、只读和缺失文件 | 自动验证生产 DSN 的 FK 和只读行为 |
 | 递归安全 | 已使用 `union` 去重并覆盖 parent 环 | 保持回归测试 |
 | 删除范围 | 用户不知道关联数据影响 | 浮层展示后代数量和完整级联范围 |
 
@@ -69,19 +69,16 @@ Schema 未验证时自动降级只读
 
 无论选择哪一种，不能只依赖“隐藏按键”。只读必须通过 SQLite `mode=ro` 实现。
 
-## 4. 发布流水线
+## 4. 持续集成
 
-推荐 GitHub Actions 流程：
+项目已增加最小 GitHub Actions CI：
 
 ```mermaid
 flowchart LR
     PUSH[Push / Pull Request] --> FORMAT[gofmt check]
     FORMAT --> VET[go vet]
     VET --> TEST[go test -race]
-    TEST --> BUILD[跨平台构建]
-    TAG[Git Tag] --> RELEASE[GoReleaser]
-    BUILD --> RELEASE
-    RELEASE --> ARTIFACTS[二进制 + SHA256 + Changelog]
+    TEST --> BUILD[构建 lazyocs]
 ```
 
 Pull Request 阶段：
@@ -93,7 +90,7 @@ go test -race ./...
 go build ./cmd/lazyocs
 ```
 
-Release 阶段通过 ldflags 注入版本：
+项目不是线上服务，因此不配置部署型 CD。等确实需要向用户提供多平台预编译包时，再增加 Tag 驱动的 GoReleaser 和版本注入：
 
 ```bash
 go build \
@@ -196,7 +193,7 @@ OpenCode 数据库 schema 不是 lazyocs 控制的公共 API。建议每次发�
 ### 阶段一：整理而不重构
 
 - 修复 P0 问题。
-- 拆分 `model.go` 文件。
+- 已完成：按状态、事件、命令、视图、浮层和格式化拆分 `model.go`。
 - 增加测试和 CI。
 - 保持现有 package 边界。
 
@@ -241,6 +238,6 @@ OpenCode DB -> read adapter
 3. 方案：Go 单二进制、Bubble Tea 单向状态流、Repository 隔离、元数据优先和 payload 懒加载。
 4. 取舍：MVP 不做全文索引，不为了形式引入 service 层。
 5. 结果：完成浏览、搜索、预览、恢复、修改、删除和配置化界面。
-6. 下一步：schema 兼容、删除备份、搜索 debounce 和自动化发布。
+6. 下一步：删除影响范围、可选备份和首个版本的发布材料。
 
 面试中主动说明现有风险通常比声称“项目已经完全生产可用”更有说服力。它体现的是能识别系统边界、安排优先级并做工程取舍。

@@ -1,0 +1,65 @@
+//go:build !windows
+
+package platform
+
+import (
+	"context"
+	"errors"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+	"time"
+)
+
+func TestCopyWritesTextToAvailableTool(t *testing.T) {
+	dir := t.TempDir()
+	output := filepath.Join(dir, "clipboard.txt")
+	writeClipboardTool(t, dir, "#!/bin/sh\n/bin/cat > \"$CLIPBOARD_TEST_OUTPUT\"\n")
+	t.Setenv("PATH", dir)
+	t.Setenv("CLIPBOARD_TEST_OUTPUT", output)
+
+	if err := Copy(context.Background(), "ses_example"); err != nil {
+		t.Fatalf("Copy returned an error: %v", err)
+	}
+	got, err := os.ReadFile(output)
+	if err != nil {
+		t.Fatalf("read copied text: %v", err)
+	}
+	if string(got) != "ses_example" {
+		t.Fatalf("copied text = %q, want %q", got, "ses_example")
+	}
+}
+
+func TestCopyStopsToolWhenContextExpires(t *testing.T) {
+	dir := t.TempDir()
+	writeClipboardTool(t, dir, "#!/bin/sh\nexec /bin/sleep 10\n")
+	t.Setenv("PATH", dir)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+	started := time.Now()
+	err := Copy(ctx, "ses_example")
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("Copy error = %v, want context deadline exceeded", err)
+	}
+	if elapsed := time.Since(started); elapsed > time.Second {
+		t.Fatalf("Copy did not stop promptly after timeout: %v", elapsed)
+	}
+}
+
+func TestCopyReportsMissingTool(t *testing.T) {
+	t.Setenv("PATH", t.TempDir())
+	err := Copy(context.Background(), "ses_example")
+	if err == nil || !strings.Contains(err.Error(), "clipboard tool not found") {
+		t.Fatalf("Copy error = %v, want missing tool error", err)
+	}
+}
+
+func writeClipboardTool(t *testing.T, dir string, content string) {
+	t.Helper()
+	path := filepath.Join(dir, "wl-copy")
+	if err := os.WriteFile(path, []byte(content), 0o755); err != nil {
+		t.Fatalf("write fake clipboard tool: %v", err)
+	}
+}

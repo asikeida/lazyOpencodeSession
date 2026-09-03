@@ -100,7 +100,7 @@ insert into part (id, message_id, session_id, data) values
 		t.Fatal(err)
 	}
 
-	repo := &SQLiteRepository{db: db}
+	repo := &SQLiteRepository{db: db, compat: SchemaCompatibility{Stats: true}}
 	stats, err := repo.SessionStats(context.Background(), "ses_1")
 	if err != nil {
 		t.Fatal(err)
@@ -128,7 +128,7 @@ insert into session (id, title) values ('ses_1', 'old title');
 		t.Fatal(err)
 	}
 
-	repo := &SQLiteRepository{db: db}
+	repo := &SQLiteRepository{db: db, compat: SchemaCompatibility{Rename: true}}
 	if err := repo.UpdateSessionTitle(context.Background(), "ses_1", "new title"); err != nil {
 		t.Fatal(err)
 	}
@@ -181,7 +181,7 @@ insert into part (id, message_id, session_id, data) values
 		t.Fatal(err)
 	}
 
-	repo := &SQLiteRepository{db: db}
+	repo := &SQLiteRepository{db: db, compat: SchemaCompatibility{Delete: true}}
 	if err := repo.DeleteSession(context.Background(), "ses_root"); err != nil {
 		t.Fatal(err)
 	}
@@ -217,7 +217,7 @@ insert into session (id, parent_id, title) values
 		t.Fatal(err)
 	}
 
-	repo := &SQLiteRepository{db: db}
+	repo := &SQLiteRepository{db: db, compat: SchemaCompatibility{Delete: true}}
 	if err := repo.DeleteSession(context.Background(), "ses_a"); err != nil {
 		t.Fatal(err)
 	}

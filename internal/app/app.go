@@ -88,6 +88,8 @@ func Check(ctx context.Context, opts Options) error {
 		return err
 	}
 	fmt.Printf("database: %s\n", dbPath)
+	compat := repo.Compatibility()
+	fmt.Printf("schema: browse=%t stats=%t preview=%t rename=%t delete=%t\n", compat.Browse, compat.Stats, compat.Preview, compat.Rename, compat.Delete)
 	fmt.Printf("loaded sessions: %d\n", len(sessions))
 	for _, s := range sessions {
 		fmt.Printf("%s\t%s\t%s\n", s.ID, s.UpdatedAt.Format("2006-01-02 15:04"), s.Title)
