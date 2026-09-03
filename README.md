@@ -4,6 +4,10 @@
 
 The command name is `lazyocs`.
 
+## Technical Documentation
+
+For an architecture-level walkthrough, implementation details, code reading order, and production roadmap, see [`opcode-summary/README.md`](./opcode-summary/README.md). The documentation covers the Bubble Tea state machine, SQLite safety and performance, configuration, testing, and release engineering.
+
 ## MVP Features
 
 - Read OpenCode SQLite database with title editing enabled by default.
@@ -15,6 +19,7 @@ The command name is `lazyocs`.
 - Lazy-load recent user message preview with `p`.
 - Resume selected session with `Enter`.
 - Edit the selected session title with `e`.
+- Delete the selected session with `d` after confirmation.
 - Copy selected session id with `y`.
 - Uses a terminal-friendly default color scheme inspired by lazygit.
 - Chinese UI with `--language auto|en|zh-CN`.
@@ -195,6 +200,7 @@ Ctrl-P         Preview current session while typing search text
 Esc            Clear search
 Enter          Resume selected session
 e              Edit current session title
+d              Delete current session (confirmation required)
 p              Preview recent user messages
 y              Copy session id
 r              Reload sessions

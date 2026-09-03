@@ -12,6 +12,8 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
+	"github.com/charmbracelet/x/cellbuf"
 
 	"github.com/asikeida/lazyOpencodeSession/internal/opencode"
 	"github.com/asikeida/lazyOpencodeSession/internal/platform"
@@ -36,33 +38,35 @@ const (
 const largeSessionBytes = 10 * 1024 * 1024
 
 type Model struct {
-	repo       opencode.Repository
-	limit      int
-	opencode   string
-	readOnly   bool
-	fields     map[string]bool
-	styles     Styles
-	texts      Texts
-	width      int
-	height     int
-	sessions   []opencode.Session
-	stats      map[string]opencode.SessionStats
-	statsBusy  map[string]bool
-	matched    int
-	total      int
-	selected   int
-	offset     int
-	query      string
-	mode       Mode
-	loading    bool
-	status     string
-	err        error
-	help       bool
-	titleEdit  bool
-	titleInput string
-	preview    []opencode.MessagePreview
-	previewFor string
-	resumeID   string
+	repo          opencode.Repository
+	limit         int
+	opencode      string
+	readOnly      bool
+	fields        map[string]bool
+	styles        Styles
+	texts         Texts
+	width         int
+	height        int
+	sessions      []opencode.Session
+	stats         map[string]opencode.SessionStats
+	statsBusy     map[string]bool
+	matched       int
+	total         int
+	selected      int
+	offset        int
+	query         string
+	mode          Mode
+	loading       bool
+	status        string
+	err           error
+	help          bool
+	titleEdit     bool
+	titleInput    string
+	deleteConfirm bool
+	deleteBusy    bool
+	preview       []opencode.MessagePreview
+	previewFor    string
+	resumeID      string
 }
 
 type sessionsLoadedMsg struct {
@@ -85,6 +89,10 @@ type statsLoadedMsg struct {
 type titleUpdatedMsg struct {
 	sessionID string
 	title     string
+}
+
+type sessionDeletedMsg struct {
+	sessionID string
 }
 
 type errMsg struct {
@@ -155,6 +163,28 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.titleInput = ""
 		m.status = m.texts.TitleSaved
 		return m, nil
+	case sessionDeletedMsg:
+		for i := range m.sessions {
+			if m.sessions[i].ID == msg.sessionID {
+				m.sessions = append(m.sessions[:i], m.sessions[i+1:]...)
+				break
+			}
+		}
+		delete(m.stats, msg.sessionID)
+		delete(m.statsBusy, msg.sessionID)
+		m.deleteConfirm = false
+		m.deleteBusy = false
+		m.preview = nil
+		m.previewFor = ""
+		m.selected = min(m.selected, max(0, len(m.sessions)-1))
+		if m.total > 0 {
+			m.total--
+		}
+		if m.matched > 0 {
+			m.matched--
+		}
+		m.status = m.texts.SessionDeleted
+		return m, m.maybeLoadStats()
 	case previewLoadedMsg:
 		if msg.sessionID == m.currentID() {
 			m.preview = msg.messages
@@ -164,6 +194,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case errMsg:
 		m.loading = false
+		m.deleteBusy = false
 		m.err = msg.err
 		m.status = msg.err.Error()
 		return m, nil
@@ -210,6 +241,26 @@ func (m Model) handleKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.titleInput += string(key.Runes)
 		case tea.KeySpace:
 			m.titleInput += " "
+		}
+		return m, nil
+	}
+
+	if m.deleteConfirm {
+		if m.deleteBusy {
+			return m, nil
+		}
+		switch key.String() {
+		case "y", "enter":
+			id := m.currentID()
+			m.deleteBusy = true
+			m.status = m.texts.DeletingSession
+			return m, m.deleteSession(id)
+		case "n", "esc":
+			m.deleteConfirm = false
+			m.status = m.texts.DeleteCancelled
+			return m, nil
+		case "ctrl+c":
+			return m, tea.Quit
 		}
 		return m, nil
 	}
@@ -303,6 +354,17 @@ func (m Model) handleKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.titleInput = m.sessions[m.selected].Title
 		m.status = m.texts.EditingTitle
 		return m, nil
+	case "d":
+		if m.currentID() == "" {
+			return m, nil
+		}
+		if m.readOnly {
+			m.status = m.texts.TitleReadOnly
+			return m, nil
+		}
+		m.deleteConfirm = true
+		m.status = m.texts.ConfirmDelete
+		return m, nil
 	case "r":
 		m.loading = true
 		m.status = m.texts.ReloadingSessions
@@ -345,10 +407,6 @@ func (m Model) View() string {
 	if m.width == 0 || m.height == 0 {
 		return m.texts.Loading
 	}
-	if m.help {
-		return m.renderHelp()
-	}
-
 	bodyHeight := max(1, m.height-1)
 	content := ""
 	if m.width < 110 {
@@ -360,7 +418,17 @@ func (m Model) View() string {
 		right := m.renderDetails(rightW, bodyHeight)
 		content = lipgloss.JoinHorizontal(lipgloss.Top, left, right)
 	}
-	return lipgloss.JoinVertical(lipgloss.Left, content, m.renderStatus())
+	view := lipgloss.JoinVertical(lipgloss.Left, content, m.renderStatus())
+	if m.help {
+		return m.renderOverlay(view, m.renderHelp())
+	}
+	if m.titleEdit {
+		return m.renderOverlay(view, m.renderTitleDialog())
+	}
+	if m.deleteConfirm {
+		return m.renderOverlay(view, m.renderDeleteDialog())
+	}
+	return view
 }
 
 func (m Model) renderSessions(width int, height int) string {
@@ -409,11 +477,7 @@ func (m Model) renderDetails(width int, height int) string {
 
 	s := m.sessions[m.selected]
 	contentWidth := max(20, width-4)
-	title := s.Title
-	if m.titleEdit && m.currentID() == s.ID {
-		title = m.titleInput + "_"
-	}
-	m.appendDetailField(&lines, "title", m.texts.FieldTitle, title, contentWidth)
+	m.appendDetailField(&lines, "title", m.texts.FieldTitle, s.Title, contentWidth)
 	m.appendDetailField(&lines, "session", m.texts.FieldSession, s.ID, contentWidth)
 	m.appendDetailField(&lines, "project", m.texts.FieldProject, s.ProjectID, contentWidth)
 	m.appendDetailField(&lines, "directory", m.texts.FieldDirectory, s.Directory, contentWidth)
@@ -468,15 +532,168 @@ func (m Model) renderStatus() string {
 }
 
 func (m Model) renderHelp() string {
-	text := strings.Join([]string{
-		m.texts.HelpTitle,
-		"",
-		renderHelpLines(m.texts.HelpLines),
-		"",
-		m.texts.ReadOnlyNotice,
-	}, "\n")
-	box := lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).Padding(1, 2).Inherit(m.styles.Panel).Inherit(m.styles.Border)
-	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, box.Render(text))
+	width := m.dialogWidth()
+	contentWidth := max(1, width-4)
+	keyWidth := 0
+	for _, line := range m.texts.HelpLines {
+		keyWidth = max(keyWidth, lipgloss.Width(line.Key))
+	}
+	keyWidth = min(keyWidth, max(1, contentWidth/2))
+	descriptionWidth := max(1, contentWidth-keyWidth-2)
+	body := make([]string, 0, len(m.texts.HelpLines)+1)
+	for _, line := range m.texts.HelpLines {
+		key := truncateWidth(line.Key, keyWidth)
+		key += strings.Repeat(" ", max(0, keyWidth-lipgloss.Width(key)))
+		body = append(body, m.styles.ModalKey.Render(key)+"  "+m.styles.ModalText.Render(truncateWidth(line.Description, descriptionWidth)))
+	}
+	body = append(body, m.styles.ModalMuted.Render(truncateWidth(m.texts.ReadOnlyNotice, contentWidth)))
+	return m.renderDialog(m.texts.HelpTitle, body, width)
+}
+
+func (m Model) renderTitleDialog() string {
+	width := m.dialogWidth()
+	contentWidth := max(1, width-4)
+	inputWidth := max(1, contentWidth-3)
+	input := tailWidth(m.titleInput, max(1, inputWidth-1)) + m.styles.ModalKey.Render("▏")
+	inputLine := m.styles.ModalIcon.Render("✎") + " " + m.styles.ModalText.Render(input)
+	hint := m.styles.ModalKey.Render("Enter") + " " + m.styles.ModalMuted.Render(m.texts.SaveAction) +
+		"  " + m.styles.ModalKey.Render("Esc") + " " + m.styles.ModalMuted.Render(m.texts.CancelAction)
+	return m.renderDialog(m.texts.SaveAsTitle, []string{
+		inputLine,
+		hint,
+	}, width)
+}
+
+func (m Model) renderDeleteDialog() string {
+	width := m.dialogWidth()
+	contentWidth := max(1, width-4)
+	title := ""
+	id := m.currentID()
+	if m.selected >= 0 && m.selected < len(m.sessions) {
+		title = m.sessions[m.selected].Title
+	}
+	target := fmt.Sprintf("%s: %s", m.texts.DeleteTarget, truncateWidth(title, max(1, contentWidth-lipgloss.Width(m.texts.DeleteTarget)-2)))
+	hint := m.styles.ModalKey.Render("y / Enter") + " " + m.styles.ModalMuted.Render(m.texts.DeleteAction) +
+		"  " + m.styles.ModalKey.Render("n / Esc") + " " + m.styles.ModalMuted.Render(m.texts.CancelAction)
+	if m.deleteBusy {
+		hint = m.styles.ModalMuted.Render(m.texts.DeletingSession)
+	}
+	return m.renderDialog(m.texts.DeleteDialogTitle, []string{
+		m.styles.ModalWarn.Render(truncateWidth(m.texts.DeleteWarning, contentWidth)),
+		m.styles.ModalText.Render(target),
+		m.styles.ModalText.Faint(true).Render(truncateWidth(id, contentWidth)),
+		ansi.Truncate(hint, contentWidth, ""),
+	}, width)
+}
+
+func (m Model) dialogWidth() int {
+	if m.width <= 4 {
+		return max(0, m.width)
+	}
+	return min(max(44, m.width*3/4), m.width-2)
+}
+
+func (m Model) renderDialog(title string, body []string, width int) string {
+	if width <= 0 {
+		return ""
+	}
+	borderStyle := m.styles.ModalBorder
+	if width == 1 {
+		return borderStyle.Render("│")
+	}
+
+	innerWidth := width - 2
+	topContent := strings.Repeat("─", innerWidth)
+	if innerWidth >= 5 {
+		title = truncateWidth(title, innerWidth-4)
+		legend := " " + title + " "
+		left := max(1, (innerWidth-lipgloss.Width(legend))/2)
+		right := max(0, innerWidth-lipgloss.Width(legend)-left)
+		topContent = strings.Repeat("─", left) + legend + strings.Repeat("─", right)
+	}
+	top := borderStyle.Render("┌" + topContent + "┐")
+	lines := []string{top}
+	for _, line := range body {
+		content := strings.Repeat(" ", innerWidth)
+		if innerWidth >= 2 {
+			contentWidth := innerWidth - 2
+			line = fitANSIWidth(line, contentWidth)
+			content = " " + line + " "
+		}
+		cell := m.styles.ModalBG.Inline(true).Render(content)
+		lines = append(lines, borderStyle.Render("│")+cell+borderStyle.Render("│"))
+	}
+	lines = append(lines, borderStyle.Render("└"+strings.Repeat("─", innerWidth)+"┘"))
+	return strings.Join(lines, "\n")
+}
+
+func (m Model) renderOverlay(base string, modal string) string {
+	if m.width <= 0 || m.height <= 0 {
+		return ""
+	}
+
+	screen := cellbuf.NewBuffer(m.width, m.height)
+	cellbuf.SetContent(screen, base)
+	dimCells(screen)
+
+	modalWidth := min(lipgloss.Width(modal), m.width)
+	modalHeight := min(len(strings.Split(modal, "\n")), m.height)
+	if modalWidth > 0 && modalHeight > 0 {
+		x := max(0, (m.width-modalWidth)/2)
+		y := max(0, (m.height-modalHeight)/2)
+		rect := cellbuf.Rect(x, y, modalWidth, modalHeight)
+		cellbuf.SetContentRect(screen, modal, rect)
+		applyBackground(screen, rect, modalBackground(m.styles.ModalBG))
+	}
+
+	lines := make([]string, m.height)
+	for row := range lines {
+		width, line := cellbuf.RenderLine(screen, row)
+		lines[row] = line + strings.Repeat(" ", max(0, m.width-width))
+	}
+	return strings.Join(lines, "\n")
+}
+
+func fitANSIWidth(value string, width int) string {
+	if width <= 0 {
+		return ""
+	}
+	value = strings.NewReplacer("\r", " ", "\n", " ", "\t", "    ").Replace(value)
+	value = ansi.Truncate(value, width, "")
+	return value + strings.Repeat(" ", max(0, width-ansi.StringWidth(value)))
+}
+
+func dimCells(buffer *cellbuf.Buffer) {
+	for y, line := range buffer.Lines {
+		for x, cell := range line {
+			if cell == nil || cell.Width == 0 {
+				continue
+			}
+			cell = cell.Clone()
+			cell.Style.Attrs |= cellbuf.FaintAttr
+			buffer.SetCell(x, y, cell)
+		}
+	}
+}
+
+func modalBackground(style lipgloss.Style) ansi.Color {
+	sample := cellbuf.NewBuffer(1, 1)
+	cellbuf.SetContent(sample, style.Inline(true).Render(" "))
+	return sample.Cell(0, 0).Style.Bg
+}
+
+func applyBackground(buffer *cellbuf.Buffer, rect cellbuf.Rectangle, background ansi.Color) {
+	for y := rect.Min.Y; y < rect.Max.Y; y++ {
+		for x := rect.Min.X; x < rect.Max.X; x++ {
+			cell := buffer.Cell(x, y)
+			if cell == nil || cell.Width == 0 {
+				continue
+			}
+			cell = cell.Clone()
+			cell.Style.Bg = background
+			buffer.SetCell(x, y, cell)
+		}
+	}
 }
 
 func (m Model) loadSessions() tea.Cmd {
@@ -537,6 +754,17 @@ func (m Model) saveTitle(sessionID string, title string) tea.Cmd {
 			return errMsg{err: err}
 		}
 		return titleUpdatedMsg{sessionID: sessionID, title: title}
+	}
+}
+
+func (m Model) deleteSession(sessionID string) tea.Cmd {
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		if err := m.repo.DeleteSession(ctx, sessionID); err != nil {
+			return errMsg{err: err}
+		}
+		return sessionDeletedMsg{sessionID: sessionID}
 	}
 }
 
@@ -849,6 +1077,20 @@ func truncateWidth(value string, width int) string {
 		runes = runes[:len(runes)-1]
 	}
 	return string(runes) + "..."
+}
+
+func tailWidth(value string, width int) string {
+	if width <= 0 {
+		return ""
+	}
+	if lipgloss.Width(value) <= width {
+		return value
+	}
+	runes := []rune(value)
+	for len(runes) > 0 && lipgloss.Width("…"+string(runes)) > width {
+		runes = runes[1:]
+	}
+	return "…" + string(runes)
 }
 
 func highlightText(value string, terms []string, normal lipgloss.Style, match lipgloss.Style) string {

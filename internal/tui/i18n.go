@@ -28,6 +28,17 @@ type Texts struct {
 	TitleCancelled        string
 	TitleReadOnly         string
 	TitleEmpty            string
+	ConfirmDelete         string
+	DeletingSession       string
+	SessionDeleted        string
+	DeleteCancelled       string
+	SaveAsTitle           string
+	DeleteDialogTitle     string
+	DeleteWarning         string
+	DeleteTarget          string
+	SaveAction            string
+	DeleteAction          string
+	CancelAction          string
 	StatusSessions        string
 	StatusMatched         string
 	ClipboardUnavailable  string
@@ -98,8 +109,19 @@ func NewTexts(lang string) Texts {
 			EditingTitle:          "编辑标题：Enter 保存，Esc 取消",
 			TitleSaved:            "标题已保存",
 			TitleCancelled:        "已取消标题编辑",
-			TitleReadOnly:         "当前为只读模式，请取消 --read-only 或修改 read_only 配置",
+			TitleReadOnly:         "当前为只读模式，无法修改会话，请取消 --read-only 或修改 read_only 配置",
 			TitleEmpty:            "标题不能为空",
+			ConfirmDelete:         "确认删除当前会话？按 y/Enter 确认，n/Esc 取消",
+			DeletingSession:       "正在删除会话...",
+			SessionDeleted:        "会话已删除",
+			DeleteCancelled:       "已取消删除",
+			SaveAsTitle:           "Save as",
+			DeleteDialogTitle:     "Delete session",
+			DeleteWarning:         "此操作将永久删除该会话及其所有子会话。",
+			DeleteTarget:          "目标",
+			SaveAction:            "保存",
+			DeleteAction:          "删除",
+			CancelAction:          "取消",
 			StatusSessions:        "%d 个会话",
 			StatusMatched:         "%d/%d 匹配",
 			ClipboardUnavailable:  "剪贴板不可用：%s",
@@ -122,6 +144,7 @@ func NewTexts(lang string) Texts {
 				{Key: "Esc", Description: "清空搜索 / 关闭帮助"},
 				{Key: "Enter", Description: "恢复选中会话"},
 				{Key: "e", Description: "编辑当前会话标题"},
+				{Key: "d", Description: "删除当前会话（需要确认）"},
 				{Key: "p", Description: "预览最近用户消息"},
 				{Key: "y", Description: "复制 session id"},
 				{Key: "r", Description: "重新加载会话"},
@@ -168,8 +191,19 @@ func NewTexts(lang string) Texts {
 		EditingTitle:          "editing title: Enter save, Esc cancel",
 		TitleSaved:            "title saved",
 		TitleCancelled:        "title edit cancelled",
-		TitleReadOnly:         "read-only mode; restart without --read-only to edit titles",
+		TitleReadOnly:         "read-only mode; restart without --read-only to modify sessions",
 		TitleEmpty:            "title cannot be empty",
+		ConfirmDelete:         "Delete this session? Press y/Enter to confirm, n/Esc to cancel",
+		DeletingSession:       "deleting session...",
+		SessionDeleted:        "session deleted",
+		DeleteCancelled:       "delete cancelled",
+		SaveAsTitle:           "Save as",
+		DeleteDialogTitle:     "Delete session",
+		DeleteWarning:         "This permanently deletes the session and all child sessions.",
+		DeleteTarget:          "Target",
+		SaveAction:            "save",
+		DeleteAction:          "delete",
+		CancelAction:          "cancel",
 		StatusSessions:        "%d sessions",
 		StatusMatched:         "%d/%d matched",
 		ClipboardUnavailable:  "clipboard unavailable: %s",
@@ -192,6 +226,7 @@ func NewTexts(lang string) Texts {
 			{Key: "Esc", Description: "Clear search / close help"},
 			{Key: "Enter", Description: "Resume selected session"},
 			{Key: "e", Description: "Edit current session title"},
+			{Key: "d", Description: "Delete current session (confirmation required)"},
 			{Key: "p", Description: "Preview recent user messages"},
 			{Key: "y", Description: "Copy session id"},
 			{Key: "r", Description: "Reload sessions"},

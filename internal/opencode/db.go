@@ -26,6 +26,7 @@ func Open(ctx context.Context, path string, readOnly bool) (*SQLiteRepository, e
 	}
 	q.Set("cache", "shared")
 	q.Add("_pragma", "busy_timeout(1000)")
+	q.Add("_pragma", "foreign_keys(ON)")
 	u.RawQuery = q.Encode()
 
 	db, err := sql.Open("sqlite", u.String())
@@ -50,6 +51,27 @@ func (r *SQLiteRepository) UpdateSessionTitle(ctx context.Context, sessionID str
 		return err
 	}
 	if count != 1 {
+		return fmt.Errorf("session not found: %s", sessionID)
+	}
+	return nil
+}
+
+func (r *SQLiteRepository) DeleteSession(ctx context.Context, sessionID string) error {
+	result, err := r.db.ExecContext(ctx, `
+with recursive descendants(id) as (
+  select id from session where id = ?
+  union
+  select s.id from session s join descendants d on s.parent_id = d.id
+)
+delete from session where id in (select id from descendants)`, sessionID)
+	if err != nil {
+		return err
+	}
+	count, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if count == 0 {
 		return fmt.Errorf("session not found: %s", sessionID)
 	}
 	return nil

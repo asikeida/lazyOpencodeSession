@@ -140,3 +140,92 @@ insert into session (id, title) values ('ses_1', 'old title');
 		t.Fatalf("unexpected title: %q", title)
 	}
 }
+
+func TestDeleteSessionRemovesDescendantsAndPayloads(t *testing.T) {
+	db, err := sql.Open("sqlite", ":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	_, err = db.Exec(`
+pragma foreign_keys = on;
+create table session (
+  id text primary key,
+  parent_id text,
+  title text not null
+);
+create table message (
+  id text primary key,
+  session_id text not null references session(id) on delete cascade,
+  data text not null
+);
+create table part (
+  id text primary key,
+  message_id text not null references message(id) on delete cascade,
+  session_id text not null,
+  data text not null
+);
+insert into session (id, parent_id, title) values
+  ('ses_root', null, 'root'),
+  ('ses_child', 'ses_root', 'child'),
+  ('ses_other', null, 'other');
+insert into message (id, session_id, data) values
+  ('msg_root', 'ses_root', 'root'),
+  ('msg_child', 'ses_child', 'child');
+insert into part (id, message_id, session_id, data) values
+  ('part_root', 'msg_root', 'ses_root', 'root'),
+  ('part_child', 'msg_child', 'ses_child', 'child');
+`)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	repo := &SQLiteRepository{db: db}
+	if err := repo.DeleteSession(context.Background(), "ses_root"); err != nil {
+		t.Fatal(err)
+	}
+	for _, table := range []string{"session", "message", "part"} {
+		var count int
+		if err := db.QueryRow("select count(*) from " + table + " where id != 'ses_other'").Scan(&count); err != nil {
+			t.Fatal(err)
+		}
+		if count != 0 {
+			t.Fatalf("%s rows remain: %d", table, count)
+		}
+	}
+}
+
+func TestDeleteSessionHandlesParentCycle(t *testing.T) {
+	db, err := sql.Open("sqlite", ":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	_, err = db.Exec(`
+create table session (
+  id text primary key,
+  parent_id text,
+  title text not null
+);
+insert into session (id, parent_id, title) values
+  ('ses_a', 'ses_b', 'a'),
+  ('ses_b', 'ses_a', 'b');
+`)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	repo := &SQLiteRepository{db: db}
+	if err := repo.DeleteSession(context.Background(), "ses_a"); err != nil {
+		t.Fatal(err)
+	}
+	var count int
+	if err := db.QueryRow("select count(*) from session").Scan(&count); err != nil {
+		t.Fatal(err)
+	}
+	if count != 0 {
+		t.Fatalf("cyclic sessions remain: %d", count)
+	}
+}
