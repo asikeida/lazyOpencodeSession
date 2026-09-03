@@ -6,7 +6,7 @@ The command name is `lazyocs`.
 
 ## MVP Features
 
-- Read OpenCode SQLite database in read-only mode by default.
+- Read OpenCode SQLite database with title editing enabled by default.
 - List root OpenCode sessions by recent update time.
 - Search session metadata with `/`.
 - Multi-term search with AND semantics, for example `windows iso` matches sessions containing both words.
@@ -14,7 +14,7 @@ The command name is `lazyocs`.
 - Show whether the session directory still exists.
 - Lazy-load recent user message preview with `p`.
 - Resume selected session with `Enter`.
-- Edit the selected session title with `e` when write mode is enabled.
+- Edit the selected session title with `e`.
 - Copy selected session id with `y`.
 - Uses a terminal-friendly default color scheme inspired by lazygit.
 - Chinese UI with `--language auto|en|zh-CN`.
@@ -53,13 +53,13 @@ Check database access without launching the TUI:
 ./lazyocs --check --limit 5
 ```
 
-Enable title editing explicitly:
+Use read-only mode when needed:
 
 ```bash
-./lazyocs --write
+./lazyocs --read-only
 ```
 
-Alternatively set `read_only = false` in `~/.config/lazyocs/config.toml`.
+Alternatively set `read_only = true` in `~/.config/lazyocs/config.toml`.
 
 Print a sample config:
 
@@ -102,9 +102,9 @@ limit = 500
 # OpenCode executable or command path used by Enter. Default: opencode.
 # 按 Enter 恢复会话时使用的 OpenCode 命令或路径。默认值：opencode。
 opencode = "opencode"
-# Database write protection. Default: true.
-# 数据库写保护。默认值：true。修改标题前可使用 --write 或设为 false。
-read_only = true
+# Database write protection. Default: false.
+# 数据库写保护。默认值：false。使用 --read-only 或设为 true 可禁止修改标题。
+read_only = false
 
 [details.fields]
 # Session title. Default: true.
@@ -194,7 +194,7 @@ Ctrl-J/K       Move selection while typing search text
 Ctrl-P         Preview current session while typing search text
 Esc            Clear search
 Enter          Resume selected session
-e              Edit current session title (requires --write)
+e              Edit current session title
 p              Preview recent user messages
 y              Copy session id
 r              Reload sessions
@@ -203,7 +203,7 @@ r              Reload sessions
 
 ## Safety
 
-The default mode opens the OpenCode database with `mode=ro` and does not modify session data. Title editing requires `--write` or `read_only = false`; write mode uses SQLite `mode=rw` and never creates a new database.
+The default mode opens the OpenCode database with SQLite `mode=rw` so title editing works directly. Use `--read-only` or `read_only = true` to prevent writes; read-write mode uses `mode=rw` and never creates a new database.
 
 ## Search Behavior
 

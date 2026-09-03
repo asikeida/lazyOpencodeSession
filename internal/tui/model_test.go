@@ -3,6 +3,7 @@ package tui
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/charmbracelet/lipgloss"
 )
@@ -32,11 +33,39 @@ func TestRenderHelpLinesAlignsDescriptions(t *testing.T) {
 func TestFormatModel(t *testing.T) {
 	lines := formatModel(`{"id":"deepseek-v4-flash-vision-exp","providerID":"opencode-go","variant":"default"}`)
 	want := []string{
-		`"id":         "deepseek-v4-flash-vision-exp"`,
+		`        "id": "deepseek-v4-flash-vision-exp"`,
 		`"providerID": "opencode-go"`,
-		`"variant":    "default"`,
+		`   "variant": "default"`,
 	}
 	if strings.Join(lines, "\n") != strings.Join(want, "\n") {
 		t.Fatalf("unexpected model formatting:\n%s", strings.Join(lines, "\n"))
+	}
+}
+
+func TestAppendModelFieldUsesDetailValueColumn(t *testing.T) {
+	model := Model{
+		fields: map[string]bool{"model": true},
+		texts:  NewTexts("zh-CN"),
+	}
+	lines := []string{}
+	model.appendModelField(&lines, `{"id":"mimo-v2.5","providerID":"opencode-go"}`, 60)
+	if len(lines) != 3 {
+		t.Fatalf("unexpected model line count: %d", len(lines))
+	}
+	propertyIndex := strings.Index(lines[1], `"id"`)
+	if propertyIndex < 0 {
+		t.Fatalf("model property not found: %q", lines[1])
+	}
+	want := lipgloss.Width(fieldPrefix("模型:"))
+	if got := lipgloss.Width(lines[1][:propertyIndex]); got != want {
+		t.Fatalf("model property starts at %d, want %d: %q", got, want, lines[1])
+	}
+}
+
+func TestFormatFullTimeIncludesWeekday(t *testing.T) {
+	date := time.Date(2026, time.September, 2, 8, 39, 49, 0, time.Local)
+	got := formatFullTime(date, [7]string{"周日", "周一", "周二", "周三", "周四", "周五", "周六"})
+	if got != "2026-09-02 周三 08:39:49" {
+		t.Fatalf("unexpected full time: %q", got)
 	}
 }

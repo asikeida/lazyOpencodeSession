@@ -95,21 +95,21 @@ func TestResolveOptionsErrorsForMissingExplicitConfig(t *testing.T) {
 	}
 }
 
-func TestResolveOptionsDefaultsToReadOnly(t *testing.T) {
+func TestResolveOptionsDefaultsToReadWrite(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	opts, err := ResolveOptions(Options{}, map[string]bool{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !opts.ReadOnly {
-		t.Fatal("expected read-only mode by default")
+	if opts.ReadOnly {
+		t.Fatal("expected read-write mode by default")
 	}
 }
 
-func TestResolveOptionsCanDisableReadOnly(t *testing.T) {
+func TestResolveOptionsCanEnableReadOnly(t *testing.T) {
 	tmp := t.TempDir()
 	configPath := filepath.Join(tmp, "config.toml")
-	if err := os.WriteFile(configPath, []byte("read_only = false\n"), 0o600); err != nil {
+	if err := os.WriteFile(configPath, []byte("read_only = true\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -117,7 +117,7 @@ func TestResolveOptionsCanDisableReadOnly(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if opts.ReadOnly {
-		t.Fatal("expected read-only mode to be disabled")
+	if !opts.ReadOnly {
+		t.Fatal("expected read-only mode to be enabled")
 	}
 }

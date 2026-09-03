@@ -25,9 +25,9 @@ limit = 500
 # OpenCode executable or command path used by Enter. Default: opencode.
 # 按 Enter 恢复会话时使用的 OpenCode 命令或路径。默认值：opencode。
 opencode = "opencode"
-# Database write protection. Default: true.
-# 数据库写保护。默认值：true。改标题前可使用 --write 或设为 false。
-read_only = true
+# Database write protection. Default: false.
+# 数据库写保护。默认值：false。使用 --read-only 或设为 true 可禁止修改标题。
+read_only = false
 
 [details.fields]
 # Session title. Default: true.
@@ -146,7 +146,7 @@ func DefaultOptions() Options {
 		Language:        "auto",
 		OpenCodeCommand: "opencode",
 		DetailFields:    DefaultDetailFields(),
-		ReadOnly:        true,
+		ReadOnly:        false,
 	}
 }
 

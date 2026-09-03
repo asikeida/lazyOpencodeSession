@@ -433,8 +433,8 @@ func (m Model) renderDetails(width int, height int) string {
 		}
 		return m.texts.No
 	}), contentWidth)
-	m.appendDetailField(&lines, "updated", m.texts.FieldUpdated, formatFullTime(s.UpdatedAt), contentWidth)
-	m.appendDetailField(&lines, "created", m.texts.FieldCreated, formatFullTime(s.CreatedAt), contentWidth)
+	m.appendDetailField(&lines, "updated", m.texts.FieldUpdated, formatFullTime(s.UpdatedAt, m.texts.Weekdays), contentWidth)
+	m.appendDetailField(&lines, "created", m.texts.FieldCreated, formatFullTime(s.CreatedAt, m.texts.Weekdays), contentWidth)
 	m.appendModelField(&lines, s.Model, contentWidth)
 	m.appendDetailField(&lines, "agent", m.texts.FieldAgent, emptyDash(s.Agent), contentWidth)
 	m.appendDetailField(&lines, "cost", m.texts.FieldCost, fmt.Sprintf("$%.4f", s.Cost), contentWidth)
@@ -608,13 +608,23 @@ func (m Model) appendModelField(lines *[]string, value string, width int) {
 		m.appendDetailField(lines, "model", m.texts.FieldModel, emptyDash(value), width)
 		return
 	}
-	*lines = append(*lines, m.texts.FieldModel+":")
-	indent := "  "
+	label := m.texts.FieldModel + ":"
+	valueIndent := fieldValueIndent(label)
+	*lines = append(*lines, fieldPrefix(label))
 	for _, line := range modelLines {
-		for _, wrapped := range wrapAll(line, max(8, width-lipgloss.Width(indent))) {
-			*lines = append(*lines, indent+wrapped)
+		for _, wrapped := range wrapAll(line, max(8, width-lipgloss.Width(valueIndent))) {
+			*lines = append(*lines, valueIndent+wrapped)
 		}
 	}
+}
+
+func fieldPrefix(label string) string {
+	padding := strings.Repeat(" ", max(1, 12-lipgloss.Width(label)))
+	return label + padding
+}
+
+func fieldValueIndent(label string) string {
+	return strings.Repeat(" ", lipgloss.Width(fieldPrefix(label)))
 }
 
 func formatModel(value string) []string {
@@ -655,7 +665,7 @@ func formatModel(value string) []string {
 		} else {
 			text = string(value)
 		}
-		lines = append(lines, fmt.Sprintf("%-*s %s", keyWidth, keyLabels[key], text))
+		lines = append(lines, fmt.Sprintf("%*s %s", keyWidth, keyLabels[key], text))
 	}
 	return lines
 }
@@ -801,11 +811,15 @@ func formatShortTime(t time.Time) string {
 	return t.Format("01-02 15:04")
 }
 
-func formatFullTime(t time.Time) string {
+func formatFullTime(t time.Time, weekdays [7]string) string {
 	if t.IsZero() {
 		return "-"
 	}
-	return t.Format("2006-01-02 15:04:05")
+	weekday := ""
+	if int(t.Weekday()) < len(weekdays) {
+		weekday = weekdays[t.Weekday()]
+	}
+	return fmt.Sprintf("%s %s %s", t.Format("2006-01-02"), weekday, t.Format("15:04:05"))
 }
 
 func formatBytes(size int64) string {

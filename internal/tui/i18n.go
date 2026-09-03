@@ -62,6 +62,7 @@ type Texts struct {
 	FieldTokens           string
 	FieldResumeCommand    string
 	TokensFormat          string
+	Weekdays              [7]string
 }
 
 func ResolveLanguage(lang string) string {
@@ -97,7 +98,7 @@ func NewTexts(lang string) Texts {
 			EditingTitle:          "编辑标题：Enter 保存，Esc 取消",
 			TitleSaved:            "标题已保存",
 			TitleCancelled:        "已取消标题编辑",
-			TitleReadOnly:         "当前为只读模式，请使用 --write 后重试",
+			TitleReadOnly:         "当前为只读模式，请取消 --read-only 或修改 read_only 配置",
 			TitleEmpty:            "标题不能为空",
 			StatusSessions:        "%d 个会话",
 			StatusMatched:         "%d/%d 匹配",
@@ -105,7 +106,7 @@ func NewTexts(lang string) Texts {
 			CopiedSessionID:       "已复制 session id",
 			RecentUserMessages:    "最近用户消息",
 			NoTextPreview:         "没有找到文本预览",
-			ReadOnlyNotice:        "默认以只读方式运行；修改标题需使用 --write。",
+			ReadOnlyNotice:        "默认允许修改标题；使用 --read-only 可进入只读模式。",
 			FooterBrowse:          "浏览",
 			FooterSearch:          "搜索",
 			FooterHelp:            "/ 搜索 | Enter 恢复 | p/Ctrl-P 预览 | y 复制 ID | ? 帮助 | q 退出",
@@ -147,6 +148,7 @@ func NewTexts(lang string) Texts {
 			FieldTokens:        "Token",
 			FieldResumeCommand: "恢复命令",
 			TokensFormat:       "输入 %d / 输出 %d / 推理 %d / 缓存 %d",
+			Weekdays:           [7]string{"周日", "周一", "周二", "周三", "周四", "周五", "周六"},
 		}
 	}
 
@@ -166,7 +168,7 @@ func NewTexts(lang string) Texts {
 		EditingTitle:          "editing title: Enter save, Esc cancel",
 		TitleSaved:            "title saved",
 		TitleCancelled:        "title edit cancelled",
-		TitleReadOnly:         "read-only mode; restart with --write to edit titles",
+		TitleReadOnly:         "read-only mode; restart without --read-only to edit titles",
 		TitleEmpty:            "title cannot be empty",
 		StatusSessions:        "%d sessions",
 		StatusMatched:         "%d/%d matched",
@@ -174,7 +176,7 @@ func NewTexts(lang string) Texts {
 		CopiedSessionID:       "copied session id",
 		RecentUserMessages:    "Recent User Messages",
 		NoTextPreview:         "No text preview found",
-		ReadOnlyNotice:        "Read-only by default; use --write to edit session titles.",
+		ReadOnlyNotice:        "Title editing is enabled by default; use --read-only to prevent writes.",
 		FooterBrowse:          "browse",
 		FooterSearch:          "search",
 		FooterHelp:            "/ search | Enter resume | p/Ctrl-P preview | y copy id | ? help | q quit",
@@ -216,5 +218,6 @@ func NewTexts(lang string) Texts {
 		FieldTokens:        "Tokens",
 		FieldResumeCommand: "Resume Command",
 		TokensFormat:       "in %d / out %d / reasoning %d / cache %d",
+		Weekdays:           [7]string{"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"},
 	}
 }
