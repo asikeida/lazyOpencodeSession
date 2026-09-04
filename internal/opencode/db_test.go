@@ -209,6 +209,14 @@ create table session (
   parent_id text,
   title text not null
 );
+create table message (
+  id text primary key,
+  session_id text not null
+);
+create table part (
+  id text primary key,
+  message_id text not null
+);
 insert into session (id, parent_id, title) values
   ('ses_a', 'ses_b', 'a'),
   ('ses_b', 'ses_a', 'b');

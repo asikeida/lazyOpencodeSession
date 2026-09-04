@@ -3,9 +3,11 @@ package opencode
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestOpenEnablesForeignKeysAndDeleteCascades(t *testing.T) {
@@ -55,6 +57,88 @@ func TestOpenReadOnlyRejectsWrites(t *testing.T) {
 	}
 	if err := repo.DeleteSession(context.Background(), "ses_root"); err == nil {
 		t.Fatal("read-only repository allowed deletion")
+	}
+}
+
+func TestDeleteImpactIncludesDescendantsAndPayloadRows(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "opencode.db")
+	createCompatibleDatabase(t, path)
+	repo, err := Open(context.Background(), path, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer repo.Close()
+	_, err = repo.db.Exec(`
+insert into session (id, project_id, parent_id, title, directory, time_created, time_updated)
+values ('ses_child', 'global', 'ses_root', 'child', '/tmp', 1, 1);
+insert into message values ('msg_child', 'ses_child', '{}', 1);
+insert into part values ('part_child', 'msg_child', 'ses_child', '{}', 1);
+`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	impact, err := repo.DeleteImpact(context.Background(), "ses_root")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := (DeleteImpact{SessionCount: 2, MessageCount: 2, PartCount: 2})
+	if impact != want {
+		t.Fatalf("impact = %#v, want %#v", impact, want)
+	}
+}
+
+func TestDeleteSessionStopsWhenImpactChanges(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "opencode.db")
+	createCompatibleDatabase(t, path)
+	repo, err := Open(context.Background(), path, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer repo.Close()
+	expected, err := repo.DeleteImpact(context.Background(), "ses_root")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := repo.db.Exec("insert into message values ('msg_new', 'ses_root', '{}', 2)"); err != nil {
+		t.Fatal(err)
+	}
+	err = repo.DeleteSessionIfUnchanged(context.Background(), "ses_root", expected)
+	if !errors.Is(err, ErrDeleteImpactChanged) {
+		t.Fatalf("delete error = %v, want impact changed", err)
+	}
+	var sessions int
+	if err := repo.db.QueryRow("select count(*) from session").Scan(&sessions); err != nil {
+		t.Fatal(err)
+	}
+	if sessions != 1 {
+		t.Fatalf("delete was partially applied: %d sessions remain", sessions)
+	}
+}
+
+func TestRecentUserMemoryMapsChildMessagesToRoot(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "opencode.db")
+	createCompatibleDatabase(t, path)
+	repo, err := Open(context.Background(), path, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer repo.Close()
+	now := time.Now().UnixMilli()
+	_, err = repo.db.Exec(`
+insert into session (id, project_id, parent_id, title, directory, time_created, time_updated)
+values ('ses_child', 'global', 'ses_root', 'child', '/tmp', ?, ?);
+insert into message values ('msg_user', 'ses_child', '{"role":"user"}', ?);
+insert into part values ('part_user', 'msg_user', 'ses_child', '{"type":"text","text":"remember the cobalt migration"}', ?);
+`, now, now, now, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	memories, err := repo.RecentUserMemory(context.Background(), time.Now().Add(-time.Hour), 100, 4000)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(memories) != 1 || memories[0].SessionID != "ses_root" || memories[0].Text != "remember the cobalt migration" {
+		t.Fatalf("unexpected memories: %#v", memories)
 	}
 }
 

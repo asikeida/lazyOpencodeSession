@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 
@@ -21,6 +22,10 @@ type Options struct {
 	OpenCodeCommand string
 	DetailFields    map[string]bool
 	ReadOnly        bool
+	RecentDays      int
+	PreviewLimit    int
+	Theme           lazytui.ThemeConfig
+	UI              lazytui.UIConfig
 }
 
 func Run(ctx context.Context, opts Options) error {
@@ -49,6 +54,10 @@ func Run(ctx context.Context, opts Options) error {
 		OpenCodeCommand: opts.OpenCodeCommand,
 		DetailFields:    opts.DetailFields,
 		ReadOnly:        opts.ReadOnly,
+		RecentDays:      opts.RecentDays,
+		PreviewLimit:    opts.PreviewLimit,
+		Theme:           opts.Theme,
+		UI:              opts.UI,
 	})
 
 	program := tea.NewProgram(model, tea.WithAltScreen())
@@ -90,6 +99,13 @@ func Check(ctx context.Context, opts Options) error {
 	fmt.Printf("database: %s\n", dbPath)
 	compat := repo.Compatibility()
 	fmt.Printf("schema: browse=%t stats=%t preview=%t rename=%t delete=%t\n", compat.Browse, compat.Stats, compat.Preview, compat.Rename, compat.Delete)
+	if opts.RecentDays > 0 {
+		memories, err := repo.RecentUserMemory(ctx, time.Now().AddDate(0, 0, -opts.RecentDays), 5000, 4000)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("memory: %d user messages (%dd)\n", len(memories), opts.RecentDays)
+	}
 	fmt.Printf("loaded sessions: %d\n", len(sessions))
 	for _, s := range sessions {
 		fmt.Printf("%s\t%s\t%s\n", s.ID, s.UpdatedAt.Format("2006-01-02 15:04"), s.Title)

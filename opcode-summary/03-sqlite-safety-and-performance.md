@@ -102,7 +102,7 @@ limit ?;
 
 这里的核心策略是“控制查询边界”，而不是在读取所有数据后再优化 Go 代码。只要不在启动路径对 `message` 和 `part` 做聚合，数 GB 数据库并不意味着必须把数 GB 内容读入内存。
 
-## 4. 元数据搜索
+## 4. 元数据与近期记忆搜索
 
 `SearchTerms` 使用空白字符分词、统一小写并去重。例如：
 
@@ -116,26 +116,25 @@ Windows ISO windows
 ["windows", "iso"]
 ```
 
-每个关键词匹配以下字段拼接后的文本：
+每个关键词匹配以下元数据和最近 N 天用户消息：
 
 ```text
-id project_id title directory model agent
+id project_id title directory model agent user_memory
 ```
 
-多个关键词之间使用 SQL AND：
+多个关键词在内存中使用 AND 语义：
 
 ```sql
-and lower(metadata) like '%windows%'
-and lower(metadata) like '%iso%'
+contains(metadata + user_memory, "windows")
+contains(metadata + user_memory, "iso")
 ```
 
-优点是语义直观、实现简单，缺点是前后通配符无法有效利用普通 B-tree 索引。当前 session 数量通常远小于 message/part 数量，因此第一优先级是增加输入 debounce，而不是立即引入复杂 FTS。
+近期消息只在启动和刷新时异步读取一次，之后搜索不再访问 SQLite。查询从根 session 递归展开，通过 session_id 和 message_id 索引读取近期 user text，避免全表扫描 part；缓存只存在于当前进程，并限制为 5,000 条、每条 4,000 个 rune。
 
 如果未来达到数万甚至更多 session，可以考虑：
 
-1. 在内存中缓存精简元数据并搜索。
-2. 建立独立 sidecar SQLite FTS5 索引。
-3. 使用 OpenCode 官方 API，前提是它提供稳定搜索接口。
+1. 建立独立 sidecar SQLite FTS5 索引。
+2. 使用 OpenCode 官方 API，前提是它提供稳定搜索接口。
 
 不建议直接在 OpenCode 数据库中创建 lazyocs 私有索引或表，这会增加对上游内部实现的侵入。
 
@@ -224,7 +223,7 @@ where id in (select id from descendants);
 
 - schema 未通过兼容检查时，只允许读取安全字段或直接拒绝启动。
 - schema 写兼容检查失败时，禁止标题修改和删除。
-- 删除前展示根 session、子 session 数量及关联数据范围。
+- 已完成：删除前异步展示 session、message 和 part 数量，确认时在短事务内重新校验范围。
 - 自动备份使用 SQLite Backup API 或 `VACUUM INTO`，不能在 WAL 模式下只复制主 `.db` 文件。
 - 不向 OpenCode 数据库增加私有“软删除”字段；回收站应放在独立 sidecar 数据库或导出文件中。
 

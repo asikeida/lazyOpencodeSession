@@ -1,0 +1,24 @@
+[theme]
+active_border_color = ["magenta", "bold"]
+inactive_border_color = ["60"]
+searching_active_border_color = ["cyan", "bold"]
+title_color = ["141", "bold"]
+accent_color = ["141", "bold"]
+options_text_color = ["111"]
+default_fg_color = ["252"]
+muted_fg_color = ["246"]
+match_color = ["117", "bold", "underline"]
+error_color = ["203", "bold"]
+warning_color = ["221"]
+selected_line_bg_color = ["61"]
+selected_line_fg_color = ["255", "bold"]
+inactive_view_selected_line_color = ["246"]
+
+[theme.modal]
+background_color = "#1F2030"
+border_color = "#B29DFF"
+key_color = "#82CFFF"
+text_color = "#D3D6F0"
+muted_color = "#8188A8"
+icon_color = "#8B94C7"
+warning_color = "#D8BA74"

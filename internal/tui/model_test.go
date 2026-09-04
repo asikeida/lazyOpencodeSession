@@ -1,7 +1,9 @@
 package tui
 
 import (
+	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -13,6 +15,55 @@ import (
 
 	"github.com/asikeida/lazyOpencodeSession/internal/opencode"
 )
+
+type previewLimitRepo struct {
+	lastSessionID string
+	lastLimit     int
+	lastMaxChars  int
+}
+
+func (r *previewLimitRepo) ListSessions(context.Context, opencode.SessionFilter) ([]opencode.Session, error) {
+	return nil, nil
+}
+
+func (r *previewLimitRepo) CountSessions(context.Context, opencode.SessionFilter) (int, error) {
+	return 0, nil
+}
+
+func (r *previewLimitRepo) SessionStats(context.Context, string) (opencode.SessionStats, error) {
+	return opencode.SessionStats{}, nil
+}
+
+func (r *previewLimitRepo) UpdateSessionTitle(context.Context, string, string) error {
+	return nil
+}
+
+func (r *previewLimitRepo) DeleteSession(context.Context, string) error {
+	return nil
+}
+
+func (r *previewLimitRepo) DeleteImpact(context.Context, string) (opencode.DeleteImpact, error) {
+	return opencode.DeleteImpact{}, nil
+}
+
+func (r *previewLimitRepo) DeleteSessionIfUnchanged(context.Context, string, opencode.DeleteImpact) error {
+	return nil
+}
+
+func (r *previewLimitRepo) RecentUserMessages(_ context.Context, sessionID string, limit int, maxChars int) ([]opencode.MessagePreview, error) {
+	r.lastSessionID = sessionID
+	r.lastLimit = limit
+	r.lastMaxChars = maxChars
+	return []opencode.MessagePreview{{ID: "msg_1", Text: "preview"}}, nil
+}
+
+func (r *previewLimitRepo) RecentUserMemory(context.Context, time.Time, int, int) ([]opencode.UserMemory, error) {
+	return nil, nil
+}
+
+func (r *previewLimitRepo) Close() error {
+	return nil
+}
 
 func TestRenderHelpLinesAlignsDescriptions(t *testing.T) {
 	lines := strings.Split(renderHelpLines([]HelpLine{
@@ -263,6 +314,63 @@ func TestDeleteErrorUnlocksConfirmationDialog(t *testing.T) {
 	}
 }
 
+func TestDeleteWaitsForImpactBeforeConfirmation(t *testing.T) {
+	model := Model{
+		deleteConfirm: true,
+		deleteLoading: true,
+		sessions:      []opencode.Session{{ID: "ses_example"}},
+		texts:         NewTexts("en"),
+	}
+	updated, cmd := model.handleKey(tea.KeyMsg{Type: tea.KeyEnter})
+	got := updated.(Model)
+	if cmd != nil || got.deleteBusy {
+		t.Fatal("delete started before impact was available")
+	}
+
+	impact := opencode.DeleteImpact{SessionCount: 2, MessageCount: 3, PartCount: 4}
+	updated, _ = got.Update(deleteImpactLoadedMsg{sessionID: "ses_example", impact: impact})
+	got = updated.(Model)
+	updated, cmd = got.handleKey(tea.KeyMsg{Type: tea.KeyEnter})
+	got = updated.(Model)
+	if cmd == nil || !got.deleteBusy {
+		t.Fatal("delete did not start after impact was confirmed")
+	}
+}
+
+func TestDeleteImpactChangeReloadsConfirmationScope(t *testing.T) {
+	model := Model{
+		deleteConfirm: true,
+		deleteBusy:    true,
+		deleteFor:     "ses_example",
+		deleteImpact:  opencode.DeleteImpact{SessionCount: 1},
+		sessions:      []opencode.Session{{ID: "ses_example"}},
+	}
+	err := fmt.Errorf("wrapped: %w", opencode.ErrDeleteImpactChanged)
+	updated, cmd := model.Update(sessionDeleteFailedMsg{sessionID: "ses_example", err: err})
+	got := updated.(Model)
+	if cmd == nil || got.deleteBusy || !got.deleteLoading || got.deleteFor != "" {
+		t.Fatalf("impact change did not restart scope loading: busy=%v loading=%v for=%q", got.deleteBusy, got.deleteLoading, got.deleteFor)
+	}
+}
+
+func TestDeleteDialogShowsImpactCounts(t *testing.T) {
+	model := Model{
+		width:         100,
+		styles:        NewStyles(),
+		texts:         NewTexts("en"),
+		sessions:      []opencode.Session{{ID: "ses_example", Title: "Important session"}},
+		deleteFor:     "ses_example",
+		deleteImpact:  opencode.DeleteImpact{SessionCount: 2, MessageCount: 30, PartCount: 90},
+		deleteConfirm: true,
+	}
+	dialog := ansi.Strip(model.renderDeleteDialog())
+	for _, want := range []string{"Sessions: 2", "Messages: 30", "Parts: 90"} {
+		if !strings.Contains(dialog, want) {
+			t.Fatalf("delete dialog does not contain %q: %q", want, dialog)
+		}
+	}
+}
+
 func TestStatsErrorUnlocksOnlyFailedSession(t *testing.T) {
 	model := Model{
 		sessions:  []opencode.Session{{ID: "ses_example"}},
@@ -384,8 +492,8 @@ func TestSearchDebounceOnlyLoadsLatestVersion(t *testing.T) {
 
 	updated, currentCmd := afterStale.Update(searchDebounceMsg{version: second.searchVersion})
 	afterCurrent := updated.(Model)
-	if currentCmd == nil || afterCurrent.searchPending {
-		t.Fatal("current debounce message did not start the latest query")
+	if currentCmd != nil || afterCurrent.searchPending {
+		t.Fatal("current debounce message did not apply the latest in-memory query")
 	}
 }
 
@@ -398,7 +506,7 @@ func TestSearchEnterFlushesPendingQuery(t *testing.T) {
 	}
 	updated, cmd := model.handleKey(tea.KeyMsg{Type: tea.KeyEnter})
 	got := updated.(Model)
-	if got.mode != ModeBrowse || got.searchPending || cmd == nil {
+	if got.mode != ModeBrowse || got.searchPending || cmd != nil {
 		t.Fatalf("enter did not flush pending search: mode=%v pending=%v cmd=%v", got.mode, got.searchPending, cmd != nil)
 	}
 	if got.searchVersion != 4 {
@@ -415,10 +523,166 @@ func TestSearchEscapeClearsImmediatelyAndInvalidatesDebounce(t *testing.T) {
 	}
 	updated, cmd := model.handleKey(tea.KeyMsg{Type: tea.KeyEsc})
 	got := updated.(Model)
-	if got.mode != ModeBrowse || got.query != "" || got.searchPending || cmd == nil {
+	if got.mode != ModeBrowse || got.query != "" || got.searchPending || cmd != nil {
 		t.Fatalf("escape did not immediately clear search: mode=%v query=%q pending=%v cmd=%v", got.mode, got.query, got.searchPending, cmd != nil)
 	}
 	if got.searchVersion != 8 {
 		t.Fatalf("version = %d, want pending timer invalidated", got.searchVersion)
+	}
+}
+
+func TestApplySearchCombinesMetadataAndUserMemory(t *testing.T) {
+	model := Model{
+		query: "windows checksum",
+		catalog: []opencode.Session{
+			{ID: "ses_match", Title: "Windows reinstall"},
+			{ID: "ses_other", Title: "Linux reinstall"},
+		},
+		memories: map[string][]opencode.UserMemory{
+			"ses_match": {{SessionID: "ses_match", Text: "Please verify the ISO checksum"}},
+			"ses_other": {{SessionID: "ses_other", Text: "Please verify the package checksum"}},
+		},
+		memorySearch: map[string]string{
+			"ses_match": "please verify the iso checksum",
+			"ses_other": "please verify the package checksum",
+		},
+	}
+	model.applySearch()
+	if len(model.sessions) != 1 || model.sessions[0].ID != "ses_match" {
+		t.Fatalf("unexpected memory search results: %#v", model.sessions)
+	}
+	if !strings.Contains(model.memoryMatches["ses_match"], "ISO checksum") {
+		t.Fatalf("missing memory match snippet: %q", model.memoryMatches["ses_match"])
+	}
+}
+
+func TestApplySearchKeepsMetadataOnlyMatchCompact(t *testing.T) {
+	model := Model{
+		query:   "windows iso",
+		catalog: []opencode.Session{{ID: "ses_match", Title: "Windows ISO"}},
+		memories: map[string][]opencode.UserMemory{
+			"ses_match": {{SessionID: "ses_match", Text: "unrelated memory"}},
+		},
+		memorySearch: map[string]string{"ses_match": "unrelated memory"},
+	}
+	model.applySearch()
+	if len(model.sessions) != 1 {
+		t.Fatalf("metadata match was lost: %#v", model.sessions)
+	}
+	if model.memoryMatches["ses_match"] != "" {
+		t.Fatalf("metadata-only match should not show a memory snippet: %q", model.memoryMatches["ses_match"])
+	}
+}
+
+func TestRenderSessionsShowsMemoryWindowAndSnippet(t *testing.T) {
+	model := Model{
+		width:      80,
+		height:     20,
+		query:      "cobalt",
+		mode:       ModeSearch,
+		recentDays: 7,
+		sessions:   []opencode.Session{{ID: "ses_match", Title: "Migration notes"}},
+		memoryMatches: map[string]string{
+			"ses_match": "remember the cobalt migration",
+		},
+		styles: NewStyles(),
+		texts:  NewTexts("en"),
+	}
+	view := ansi.Strip(model.renderSessions(80, 19))
+	for _, want := range []string{"[memory 7d]", "remember the cobalt migration"} {
+		if !strings.Contains(view, want) {
+			t.Fatalf("search view does not contain %q: %q", want, view)
+		}
+	}
+}
+
+func TestLoadPreviewUsesConfiguredLimit(t *testing.T) {
+	repo := &previewLimitRepo{}
+	model := Model{repo: repo, previewLimit: 12}
+	msg := model.loadPreview("ses_example")()
+	loaded, ok := msg.(previewLoadedMsg)
+	if !ok {
+		t.Fatalf("unexpected message: %#v", msg)
+	}
+	if loaded.sessionID != "ses_example" {
+		t.Fatalf("session id = %q", loaded.sessionID)
+	}
+	if repo.lastLimit != 12 || repo.lastSessionID != "ses_example" || repo.lastMaxChars != 500 {
+		t.Fatalf("unexpected preview arguments: session=%q limit=%d maxChars=%d", repo.lastSessionID, repo.lastLimit, repo.lastMaxChars)
+	}
+}
+
+func TestHLTogglePanelFocus(t *testing.T) {
+	model := Model{width: 120}
+	updated, _ := model.handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'l'}})
+	got := updated.(Model)
+	if got.focus != FocusDetails {
+		t.Fatalf("focus = %v, want details", got.focus)
+	}
+	updated, _ = got.handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'h'}})
+	got = updated.(Model)
+	if got.focus != FocusSessions {
+		t.Fatalf("focus = %v, want sessions", got.focus)
+	}
+}
+
+func TestRightFocusUsesJKToScrollDetails(t *testing.T) {
+	model := Model{
+		width:        120,
+		height:       20,
+		focus:        FocusDetails,
+		previewFor:   "ses_example",
+		previewLimit: 20,
+		styles:       NewStyles(),
+		texts:        NewTexts("en"),
+		sessions:     []opencode.Session{{ID: "ses_example", Title: "Example", Directory: "/tmp"}},
+		fields:       normalizeDetailFields(nil),
+		preview:      make([]opencode.MessagePreview, 0, 20),
+	}
+	for i := 0; i < 20; i++ {
+		model.preview = append(model.preview, opencode.MessagePreview{ID: fmt.Sprintf("msg_%d", i), Text: fmt.Sprintf("line %d", i), CreatedAt: time.Now()})
+	}
+	updated, _ := model.handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
+	got := updated.(Model)
+	if got.detailsOffset <= 0 {
+		t.Fatalf("details offset = %d, want > 0", got.detailsOffset)
+	}
+	updated, _ = got.handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'k'}})
+	got = updated.(Model)
+	if got.detailsOffset != 0 {
+		t.Fatalf("details offset = %d, want back to 0", got.detailsOffset)
+	}
+}
+
+func TestRenderDetailsShowsScrollHintAndProgress(t *testing.T) {
+	model := Model{
+		width:        120,
+		height:       12,
+		focus:        FocusDetails,
+		previewFor:   "ses_example",
+		previewLimit: 10,
+		styles:       NewStyles(),
+		texts:        NewTexts("en"),
+		sessions:     []opencode.Session{{ID: "ses_example", Title: "Example", Directory: "/tmp"}},
+		fields:       normalizeDetailFields(nil),
+		preview:      []opencode.MessagePreview{{ID: "msg_1", Text: strings.Repeat("scroll ", 40), CreatedAt: time.Now()}},
+	}
+	view := ansi.Strip(model.renderDetails(66, 11))
+	if !strings.Contains(view, "h/l switch  j/k scroll") {
+		t.Fatalf("details view missing scroll hint: %q", view)
+	}
+	if !strings.Contains(view, "/") {
+		t.Fatalf("details view missing progress: %q", view)
+	}
+}
+
+func TestBestMemorySnippetKeepsMatchVisible(t *testing.T) {
+	text := "\x1b[31m" + strings.Repeat("前文", 120) + "\n cobalt migration"
+	snippet := bestMemorySnippet([]opencode.UserMemory{{Text: text}}, []string{"cobalt"})
+	if !strings.Contains(snippet, "cobalt") || !strings.HasPrefix(snippet, "…") {
+		t.Fatalf("snippet does not preserve match context: %q", snippet)
+	}
+	if strings.ContainsRune(snippet, '\x1b') || strings.ContainsRune(snippet, '\n') {
+		t.Fatalf("snippet contains terminal control characters: %q", snippet)
 	}
 }

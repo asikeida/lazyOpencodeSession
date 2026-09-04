@@ -15,13 +15,23 @@ type Options struct {
 	OpenCodeCommand string
 	DetailFields    map[string]bool
 	ReadOnly        bool
+	RecentDays      int
+	PreviewLimit    int
+	Theme           ThemeConfig
+	UI              UIConfig
 }
 
 type Mode int
+type PanelFocus int
 
 const (
 	ModeBrowse Mode = iota
 	ModeSearch
+)
+
+const (
+	FocusSessions PanelFocus = iota
+	FocusDetails
 )
 
 const largeSessionBytes = 10 * 1024 * 1024
@@ -56,15 +66,29 @@ type Model struct {
 	titleInput    string
 	deleteConfirm bool
 	deleteBusy    bool
+	deleteImpact  opencode.DeleteImpact
+	deleteFor     string
+	deleteLoading bool
+	deleteErr     error
 	preview       []opencode.MessagePreview
 	previewFor    string
+	detailsOffset int
+	focus         PanelFocus
+	previewLimit  int
 	resumeID      string
+	catalog       []opencode.Session
+	memories      map[string][]opencode.UserMemory
+	memorySearch  map[string]string
+	memoryMatches map[string]string
+	recentDays    int
+	memoryLoading bool
+	memoryErr     error
+	ui            UIConfig
 }
 
 type sessionsLoadedMsg struct {
 	query    string
 	sessions []opencode.Session
-	matched  int
 	total    int
 }
 
@@ -85,6 +109,16 @@ type titleUpdatedMsg struct {
 
 type sessionDeletedMsg struct {
 	sessionID string
+}
+
+type deleteImpactLoadedMsg struct {
+	sessionID string
+	impact    opencode.DeleteImpact
+}
+
+type deleteImpactFailedMsg struct {
+	sessionID string
+	err       error
 }
 
 type sessionsLoadFailedMsg struct {
@@ -123,27 +157,50 @@ type searchDebounceMsg struct {
 	version uint64
 }
 
+type userMemoryLoadedMsg struct {
+	memories []opencode.UserMemory
+}
+
+type userMemoryFailedMsg struct {
+	err error
+}
+
 func New(opts Options) Model {
 	if opts.Limit <= 0 {
 		opts.Limit = 500
 	}
+	opts.UI = NormalizeUIConfig(opts.UI)
+	styles, err := BuildStyles(opts.Theme)
+	if err != nil {
+		styles = NewStyles()
+	}
 	return Model{
-		repo:      opts.Repo,
-		limit:     opts.Limit,
-		opencode:  defaultString(opts.OpenCodeCommand, "opencode"),
-		readOnly:  opts.ReadOnly,
-		fields:    normalizeDetailFields(opts.DetailFields),
-		stats:     map[string]opencode.SessionStats{},
-		statsBusy: map[string]bool{},
-		styles:    NewStyles(),
-		texts:     NewTexts(opts.Language),
-		loading:   true,
-		status:    NewTexts(opts.Language).LoadingSessions,
+		repo:          opts.Repo,
+		limit:         opts.Limit,
+		opencode:      defaultString(opts.OpenCodeCommand, "opencode"),
+		readOnly:      opts.ReadOnly,
+		fields:        normalizeDetailFields(opts.DetailFields),
+		stats:         map[string]opencode.SessionStats{},
+		statsBusy:     map[string]bool{},
+		styles:        styles,
+		texts:         NewTexts(opts.Language),
+		loading:       true,
+		status:        NewTexts(opts.Language).LoadingSessions,
+		memories:      map[string][]opencode.UserMemory{},
+		memorySearch:  map[string]string{},
+		memoryMatches: map[string]string{},
+		recentDays:    opts.RecentDays,
+		memoryLoading: opts.RecentDays > 0,
+		previewLimit:  max(1, opts.PreviewLimit),
+		ui:            opts.UI,
 	}
 }
 
 func (m Model) Init() tea.Cmd {
-	return m.loadSessions()
+	if m.recentDays <= 0 {
+		return m.loadSessions()
+	}
+	return tea.Batch(m.loadSessions(), m.loadUserMemory())
 }
 
 func (m Model) ResumeSessionID() string {

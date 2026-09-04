@@ -97,9 +97,9 @@ func (m Model) loadPreview(sessionID string) tea.Cmd {
 2. 结果是不可变消息，统一由 `Update` 更新状态。
 3. 每个查询有超时，不会无限占用连接。
 
-搜索结果还带有发起时的 query。`sessionsLoadedMsg` 回来后会比较 `msg.query` 和当前 `m.query`，旧查询结果不会覆盖新输入。这是处理异步乱序的有效性校验。
+session 元数据和近期用户消息分别异步加载。任一结果返回后，`Update` 更新内存目录并针对当前 query 重新过滤，因此较晚返回的记忆数据可以无缝补充搜索结果。
 
-搜索输入现已增加 100ms debounce。每次文字输入和退格都会递增 `searchVersion`，只有版本仍然最新的 `searchDebounceMsg` 才会发起 SQL；`Enter` 会立即提交待处理查询，`Esc` 会立即清空并查询全部会话。
+搜索输入使用 100ms debounce。每次文字输入和退格都会递增 `searchVersion`，只有版本仍然最新的 `searchDebounceMsg` 才会执行内存过滤；`Enter` 会立即提交待处理查询，`Esc` 会立即清空。输入阶段不再重复访问 SQLite。
 
 ## 5. 列表与响应式布局
 
@@ -114,10 +114,11 @@ func (m Model) loadPreview(sessionID string) tea.Cmd {
 
 ## 6. 搜索模式
 
-搜索包含两个层次：
+搜索包含三个层次：
 
 1. TUI 使用 `strings.Fields` 将 query 解析成多个关键词。
-2. Repository 为每个关键词生成一个 `LIKE` 条件，关键词之间用 AND 连接。
+2. 启动时异步加载精简 session 元数据和最近 N 天用户消息。
+3. TUI 在内存中组合匹配，关键词之间使用 AND 语义。
 
 例如：
 
@@ -125,7 +126,7 @@ func (m Model) loadPreview(sessionID string) tea.Cmd {
 windows iso
 ```
 
-语义不是匹配完整短语，而是 title、directory、session ID、project ID、model、agent 的拼接元数据中必须同时出现 `windows` 和 `iso`。
+语义不是匹配完整短语，而是 title、directory、session ID、project ID、model、agent 和近期用户消息的组合文本中必须同时出现 `windows` 和 `iso`。两个词可以分别命中标题和用户消息。
 
 搜索模式下普通 `j/k/p` 被视为输入内容，列表导航改用方向键或 `Ctrl-J/Ctrl-K`，预览改用 `Ctrl-P`。这是键盘优先工具里避免快捷键和文本输入冲突的处理。
 

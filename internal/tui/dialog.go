@@ -53,15 +53,31 @@ func (m Model) renderDeleteDialog() string {
 	target := fmt.Sprintf("%s: %s", m.texts.DeleteTarget, truncateWidth(title, max(1, contentWidth-lipgloss.Width(m.texts.DeleteTarget)-2)))
 	hint := m.styles.ModalKey.Render("y / Enter") + " " + m.styles.ModalMuted.Render(m.texts.DeleteAction) +
 		"  " + m.styles.ModalKey.Render("n / Esc") + " " + m.styles.ModalMuted.Render(m.texts.CancelAction)
+	impact := []string{}
+	if m.deleteLoading {
+		impact = append(impact, m.styles.ModalMuted.Render(m.texts.LoadingDeleteImpact))
+		hint = m.styles.ModalKey.Render("Esc") + " " + m.styles.ModalMuted.Render(m.texts.CancelAction)
+	} else if m.deleteErr != nil {
+		impact = append(impact, m.styles.Error.Render(truncateWidth(m.deleteErr.Error(), contentWidth)))
+		hint = m.styles.ModalKey.Render("Esc") + " " + m.styles.ModalMuted.Render(m.texts.CancelAction)
+	} else {
+		impact = append(impact,
+			m.styles.ModalText.Render(fmt.Sprintf("%s: %d", m.texts.DeleteSessions, m.deleteImpact.SessionCount)),
+			m.styles.ModalText.Render(fmt.Sprintf("%s: %d", m.texts.DeleteMessages, m.deleteImpact.MessageCount)),
+			m.styles.ModalText.Render(fmt.Sprintf("%s: %d", m.texts.DeleteParts, m.deleteImpact.PartCount)),
+		)
+	}
 	if m.deleteBusy {
 		hint = m.styles.ModalMuted.Render(m.texts.DeletingSession)
 	}
-	return m.renderDialog(m.texts.DeleteDialogTitle, []string{
+	body := []string{
 		m.styles.ModalWarn.Render(truncateWidth(m.texts.DeleteWarning, contentWidth)),
 		m.styles.ModalText.Render(target),
 		m.styles.ModalText.Faint(true).Render(truncateWidth(id, contentWidth)),
-		ansi.Truncate(hint, contentWidth, ""),
-	}, width)
+	}
+	body = append(body, impact...)
+	body = append(body, ansi.Truncate(hint, contentWidth, ""))
+	return m.renderDialog(m.texts.DeleteDialogTitle, body, width)
 }
 
 func (m Model) dialogWidth() int {

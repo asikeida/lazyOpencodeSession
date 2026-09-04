@@ -7,9 +7,129 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/charmbracelet/lipgloss"
+
+	"github.com/asikeida/lazyOpencodeSession/internal/opencode"
 )
+
+func (m *Model) applySearch() {
+	terms := opencode.SearchTerms(m.query)
+	m.memoryMatches = map[string]string{}
+	if len(terms) == 0 {
+		m.sessions = append(m.sessions[:0], m.catalog...)
+		m.matched = len(m.sessions)
+		return
+	}
+	filtered := make([]opencode.Session, 0, len(m.catalog))
+	for _, session := range m.catalog {
+		metadata := strings.ToLower(strings.Join([]string{session.ID, session.ProjectID, session.Title, session.Directory, session.Model, session.Agent}, " "))
+		if !containsAllTermsAcross(metadata, m.memorySearch[session.ID], terms) {
+			continue
+		}
+		filtered = append(filtered, session)
+		if !containsAllTerms(metadata, terms) {
+			m.memoryMatches[session.ID] = bestMemorySnippet(m.memories[session.ID], terms)
+		}
+	}
+	m.sessions = filtered
+	m.matched = len(filtered)
+}
+
+func containsAllTermsAcross(metadata string, memory string, terms []string) bool {
+	for _, term := range terms {
+		if !strings.Contains(metadata, term) && !strings.Contains(memory, term) {
+			return false
+		}
+	}
+	return true
+}
+
+func containsAllTerms(value string, terms []string) bool {
+	for _, term := range terms {
+		if !strings.Contains(value, term) {
+			return false
+		}
+	}
+	return true
+}
+
+func bestMemorySnippet(memories []opencode.UserMemory, terms []string) string {
+	best := ""
+	bestScore := 0
+	for _, memory := range memories {
+		text := sanitizeSingleLine(memory.Text)
+		lower := strings.ToLower(text)
+		score := 0
+		for _, term := range terms {
+			if strings.Contains(lower, term) {
+				score++
+			}
+		}
+		if score > bestScore {
+			best = contextualSnippet(text, terms, 180)
+			bestScore = score
+		}
+	}
+	return best
+}
+
+func sanitizeSingleLine(value string) string {
+	return strings.Join(strings.FieldsFunc(value, func(r rune) bool {
+		return unicode.IsSpace(r) || unicode.IsControl(r)
+	}), " ")
+}
+
+func contextualSnippet(text string, terms []string, maxRunes int) string {
+	runes := []rune(text)
+	if len(runes) <= maxRunes {
+		return text
+	}
+	lower := []rune(strings.ToLower(text))
+	position := 0
+	found := false
+	for _, term := range terms {
+		if index := runeIndex(lower, []rune(term)); index >= 0 {
+			if !found || index < position {
+				position = index
+				found = true
+			}
+		}
+	}
+	start := max(0, position-24)
+	end := min(len(runes), start+maxRunes)
+	if end-start < maxRunes {
+		start = max(0, end-maxRunes)
+	}
+	snippet := string(runes[start:end])
+	if start > 0 {
+		snippet = "…" + snippet
+	}
+	if end < len(runes) {
+		snippet += "…"
+	}
+	return snippet
+}
+
+func runeIndex(value []rune, term []rune) int {
+	if len(term) == 0 {
+		return 0
+	}
+	for i := 0; i+len(term) <= len(value); i++ {
+		match := true
+		for j := range term {
+			if value[i+j] != term[j] {
+				match = false
+				break
+			}
+		}
+		if match {
+			return i
+		}
+	}
+	return -1
+}
 
 func fieldPrefix(label string) string {
 	padding := strings.Repeat(" ", max(1, 12-lipgloss.Width(label)))
@@ -113,7 +233,11 @@ func (m Model) visibleItems() int {
 	if m.query != "" || m.mode == ModeSearch {
 		reserved = 6
 	}
-	return max(1, (m.height-reserved)/2)
+	linesPerItem := 2
+	if m.query != "" {
+		linesPerItem = 3
+	}
+	return max(1, (m.height-reserved)/linesPerItem)
 }
 
 func renderField(name string, value string, width int) []string {

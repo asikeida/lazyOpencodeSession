@@ -24,8 +24,8 @@
 
 | 能力 | 交互 | 实现重点 |
 | --- | --- | --- |
-| 会话列表 | 启动自动加载 | 只查询 session 元数据，按更新时间倒序 |
-| 多关键词搜索 | `/` | 空格分词，关键词之间使用 AND 语义 |
+| 会话列表 | 启动自动加载 | session 元数据按更新时间倒序，近期记忆并行加载 |
+| 多关键词搜索 | `/` | 元数据与最近 N 天用户消息组合匹配，关键词使用 AND 语义 |
 | 会话详情 | 移动选中项 | 可配置字段，不读取消息 payload |
 | 消息预览 | `p` | 按需读取最近用户文本，限制数量与长度 |
 | 标题修改 | `e` | 浮层输入、空值校验、异步 SQL 更新 |
@@ -70,6 +70,8 @@
 | [`05-production-roadmap.md`](./05-production-roadmap.md) | 上线风险、优先级、持续集成、兼容性与发布计划 |
 | [`06-popup-border-alignment.md`](./06-popup-border-alignment.md) | 浮层边框错位根因、Lazygit 对比、cell buffer 修复方案与验收标准 |
 | [`07-production-hardening-before-after.md`](./07-production-hardening-before-after.md) | 上线前七项稳定性工作的用途、Before/After 对照、验收标准和面试讲法 |
+| [`08-why-delete-impact-analysis.md`](./08-why-delete-impact-analysis.md) | 删除影响范围是否值得实现、最小方案、性能边界和反方条件 |
+| [`09-recent-memory-search.md`](./09-recent-memory-search.md) | 最近 N 天用户消息搜索、极简交互、索引路径和隐私边界 |
 | [`mvp-design.md`](./mvp-design.md) | 最初的产品定位、MVP 范围和早期技术选型 |
 
 ## 架构概览
@@ -97,4 +99,4 @@ flowchart TD
 
 ## 当前状态说明
 
-项目当前已经具备完整的本地 MVP 使用路径，并已完成异步剪贴板、操作级错误恢复、搜索 debounce、数据库 schema 能力检查、正式连接集成测试、TUI 职责拆分和最小 CI。下一阶段重点是删除影响范围展示、可选备份和首个版本发布材料。
+项目当前已经具备完整的本地 MVP 使用路径，并已完成异步剪贴板、操作级错误恢复、搜索 debounce、数据库 schema 能力检查、正式连接集成测试、TUI 职责拆分、最小 CI 和删除影响范围复核。下一阶段重点是可选一致性备份、标题输入加固和首个版本发布材料。

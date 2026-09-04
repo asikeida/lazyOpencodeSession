@@ -27,10 +27,22 @@ type MessagePreview struct {
 	CreatedAt time.Time
 }
 
+type UserMemory struct {
+	SessionID string
+	Text      string
+	CreatedAt time.Time
+}
+
 type SessionStats struct {
 	MessageCount int64
 	PartCount    int64
 	SizeBytes    int64
+}
+
+type DeleteImpact struct {
+	SessionCount int64
+	MessageCount int64
+	PartCount    int64
 }
 
 type SessionFilter struct {

@@ -30,12 +30,16 @@ type Texts struct {
 	TitleEmpty            string
 	ConfirmDelete         string
 	DeletingSession       string
+	LoadingDeleteImpact   string
 	SessionDeleted        string
 	DeleteCancelled       string
 	SaveAsTitle           string
 	DeleteDialogTitle     string
 	DeleteWarning         string
 	DeleteTarget          string
+	DeleteSessions        string
+	DeleteMessages        string
+	DeleteParts           string
 	SaveAction            string
 	DeleteAction          string
 	CancelAction          string
@@ -44,6 +48,10 @@ type Texts struct {
 	ClipboardUnavailable  string
 	CopyingSessionID      string
 	CopiedSessionID       string
+	MemoryWindow          string
+	MemoryLoading         string
+	MemoryUnavailable     string
+	DetailsScrollHint     string
 	RecentUserMessages    string
 	NoTextPreview         string
 	ReadOnlyNotice        string
@@ -114,12 +122,16 @@ func NewTexts(lang string) Texts {
 			TitleEmpty:            "标题不能为空",
 			ConfirmDelete:         "确认删除当前会话？按 y/Enter 确认，n/Esc 取消",
 			DeletingSession:       "正在删除会话...",
+			LoadingDeleteImpact:   "正在统计删除影响...",
 			SessionDeleted:        "会话已删除",
 			DeleteCancelled:       "已取消删除",
 			SaveAsTitle:           "Save as",
 			DeleteDialogTitle:     "Delete session",
 			DeleteWarning:         "此操作将永久删除该会话及其所有子会话。",
 			DeleteTarget:          "目标",
+			DeleteSessions:        "会话",
+			DeleteMessages:        "消息",
+			DeleteParts:           "内容块",
 			SaveAction:            "保存",
 			DeleteAction:          "删除",
 			CancelAction:          "取消",
@@ -128,6 +140,10 @@ func NewTexts(lang string) Texts {
 			ClipboardUnavailable:  "剪贴板不可用：%s",
 			CopyingSessionID:      "正在复制 session id...",
 			CopiedSessionID:       "已复制 session id",
+			MemoryWindow:          "记忆 %d天",
+			MemoryLoading:         "加载中",
+			MemoryUnavailable:     "不可用",
+			DetailsScrollHint:     "h/l 切换面板  j/k 滚动",
 			RecentUserMessages:    "最近用户消息",
 			NoTextPreview:         "没有找到文本预览",
 			ReadOnlyNotice:        "默认允许修改标题；使用 --read-only 可进入只读模式。",
@@ -142,7 +158,7 @@ func NewTexts(lang string) Texts {
 				{Key: "搜索中 Ctrl-K/J", Description: "上下移动，j/k 仍输入文字"},
 				{Key: "搜索中 Ctrl-P", Description: "预览当前会话"},
 				{Key: "PageUp/Down", Description: "翻页"},
-				{Key: "/", Description: "搜索元数据，空格分隔多个关键词"},
+				{Key: "/", Description: "搜索元数据和近期用户消息"},
 				{Key: "Esc", Description: "清空搜索 / 关闭帮助"},
 				{Key: "Enter", Description: "恢复选中会话"},
 				{Key: "e", Description: "编辑当前会话标题"},
@@ -197,12 +213,16 @@ func NewTexts(lang string) Texts {
 		TitleEmpty:            "title cannot be empty",
 		ConfirmDelete:         "Delete this session? Press y/Enter to confirm, n/Esc to cancel",
 		DeletingSession:       "deleting session...",
+		LoadingDeleteImpact:   "calculating delete impact...",
 		SessionDeleted:        "session deleted",
 		DeleteCancelled:       "delete cancelled",
 		SaveAsTitle:           "Save as",
 		DeleteDialogTitle:     "Delete session",
 		DeleteWarning:         "This permanently deletes the session and all child sessions.",
 		DeleteTarget:          "Target",
+		DeleteSessions:        "Sessions",
+		DeleteMessages:        "Messages",
+		DeleteParts:           "Parts",
 		SaveAction:            "save",
 		DeleteAction:          "delete",
 		CancelAction:          "cancel",
@@ -211,6 +231,10 @@ func NewTexts(lang string) Texts {
 		ClipboardUnavailable:  "clipboard unavailable: %s",
 		CopyingSessionID:      "copying session id...",
 		CopiedSessionID:       "copied session id",
+		MemoryWindow:          "memory %dd",
+		MemoryLoading:         "loading",
+		MemoryUnavailable:     "unavailable",
+		DetailsScrollHint:     "h/l switch  j/k scroll",
 		RecentUserMessages:    "Recent User Messages",
 		NoTextPreview:         "No text preview found",
 		ReadOnlyNotice:        "Title editing is enabled by default; use --read-only to prevent writes.",
@@ -225,7 +249,7 @@ func NewTexts(lang string) Texts {
 			{Key: "Search Ctrl-K/J", Description: "Move; j/k still type text"},
 			{Key: "Search Ctrl-P", Description: "Preview current session"},
 			{Key: "PageUp/Down", Description: "Jump list"},
-			{Key: "/", Description: "Search metadata; split terms by spaces"},
+			{Key: "/", Description: "Search metadata and recent user messages"},
 			{Key: "Esc", Description: "Clear search / close help"},
 			{Key: "Enter", Description: "Resume selected session"},
 			{Key: "e", Description: "Edit current session title"},

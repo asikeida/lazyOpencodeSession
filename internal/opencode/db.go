@@ -27,6 +27,8 @@ type SchemaCompatibility struct {
 	Issues  []string
 }
 
+var ErrDeleteImpactChanged = errors.New("delete impact changed; review the updated scope and confirm again")
+
 func Open(ctx context.Context, path string, readOnly bool) (*SQLiteRepository, error) {
 	u := url.URL{Scheme: "file", Path: path}
 	q := u.Query()
@@ -80,10 +82,37 @@ func (r *SQLiteRepository) UpdateSessionTitle(ctx context.Context, sessionID str
 }
 
 func (r *SQLiteRepository) DeleteSession(ctx context.Context, sessionID string) error {
+	impact, err := r.DeleteImpact(ctx, sessionID)
+	if err != nil {
+		return err
+	}
+	return r.DeleteSessionIfUnchanged(ctx, sessionID, impact)
+}
+
+func (r *SQLiteRepository) DeleteImpact(ctx context.Context, sessionID string) (DeleteImpact, error) {
+	if !r.compat.Delete {
+		return DeleteImpact{}, errors.New("OpenCode database schema does not have the required delete cascades")
+	}
+	return queryDeleteImpact(ctx, r.db, sessionID)
+}
+
+func (r *SQLiteRepository) DeleteSessionIfUnchanged(ctx context.Context, sessionID string, expected DeleteImpact) error {
 	if !r.compat.Delete {
 		return errors.New("OpenCode database schema does not have the required delete cascades")
 	}
-	result, err := r.db.ExecContext(ctx, `
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	current, err := queryDeleteImpact(ctx, tx, sessionID)
+	if err != nil {
+		return err
+	}
+	if current != expected {
+		return fmt.Errorf("%w: expected %+v, current %+v", ErrDeleteImpactChanged, expected, current)
+	}
+	result, err := tx.ExecContext(ctx, `
 with recursive descendants(id) as (
   select id from session where id = ?
   union
@@ -100,7 +129,39 @@ delete from session where id in (select id from descendants)`, sessionID)
 	if count == 0 {
 		return fmt.Errorf("session not found: %s", sessionID)
 	}
-	return nil
+	if count != expected.SessionCount {
+		return fmt.Errorf("%w: expected %d sessions, deleted %d", ErrDeleteImpactChanged, expected.SessionCount, count)
+	}
+	return tx.Commit()
+}
+
+type queryRower interface {
+	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
+}
+
+func queryDeleteImpact(ctx context.Context, db queryRower, sessionID string) (DeleteImpact, error) {
+	var impact DeleteImpact
+	err := db.QueryRowContext(ctx, `
+with recursive descendants(id) as (
+  select id from session where id = ?
+  union
+  select s.id from session s join descendants d on s.parent_id = d.id
+)
+select
+  (select count(*) from descendants),
+  (select count(*) from message where session_id in (select id from descendants)),
+  (select count(*) from part p join message m on p.message_id = m.id where m.session_id in (select id from descendants))`, sessionID).Scan(
+		&impact.SessionCount,
+		&impact.MessageCount,
+		&impact.PartCount,
+	)
+	if err != nil {
+		return DeleteImpact{}, err
+	}
+	if impact.SessionCount == 0 {
+		return DeleteImpact{}, fmt.Errorf("session not found: %s", sessionID)
+	}
+	return impact, nil
 }
 
 func (r *SQLiteRepository) Close() error {
@@ -353,6 +414,51 @@ limit ?`, sessionID, limit*3)
 		}
 	}
 	return previews, rows.Err()
+}
+
+func (r *SQLiteRepository) RecentUserMemory(ctx context.Context, since time.Time, limit int, maxChars int) ([]UserMemory, error) {
+	if !r.compat.Preview {
+		return nil, errors.New("OpenCode database schema does not support user memory search")
+	}
+	if limit <= 0 {
+		limit = 5000
+	}
+	if maxChars <= 0 {
+		maxChars = 4000
+	}
+	rows, err := r.db.QueryContext(ctx, `
+with recursive roots(root_id, id) as (
+  select id, id from session where parent_id is null or parent_id = ''
+  union
+  select roots.root_id, s.id from session s join roots on s.parent_id = roots.id
+)
+select roots.root_id, p.data, p.time_created
+from roots
+cross join message m on m.session_id = roots.id
+cross join part p on p.message_id = m.id
+where m.time_created >= ?
+  and m.data like '%"role":"user"%'
+  and p.data like '%"type":"text"%'
+order by m.time_created desc, p.time_created asc
+limit ?`, since.UnixMilli(), limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	memories := make([]UserMemory, 0)
+	for rows.Next() {
+		var sessionID, raw string
+		var created int64
+		if err := rows.Scan(&sessionID, &raw, &created); err != nil {
+			return nil, err
+		}
+		text := textFromPart(raw)
+		if strings.TrimSpace(text) == "" {
+			continue
+		}
+		memories = append(memories, UserMemory{SessionID: sessionID, Text: truncateRunes(text, maxChars), CreatedAt: millis(created)})
+	}
+	return memories, rows.Err()
 }
 
 func textFromPart(raw string) string {

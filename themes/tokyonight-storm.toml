@@ -1,0 +1,32 @@
+[theme]
+active_border_color = ["#7aa2f7", "bold"]
+inactive_border_color = ["#565f89"]
+searching_active_border_color = ["#7dcfff", "bold"]
+title_color = ["#7aa2f7", "bold"]
+accent_color = ["#bb9af7", "bold"]
+options_text_color = ["#7dcfff"]
+default_fg_color = ["#c0caf5"]
+muted_fg_color = ["#787c99"]
+match_color = ["#73daca", "bold", "underline"]
+focused_selected_match_color = ["#0db9d7", "bold", "underline"]
+inactive_selected_match_color = ["#73daca", "underline"]
+error_color = ["#f7768e", "bold"]
+warning_color = ["#e0af68"]
+selected_line_bg_color = ["#2e3c64"]
+selected_line_fg_color = ["#e0e5ff", "bold"]
+inactive_view_selected_line_color = ["#9aa5ce"]
+status_mode_color = ["#7aa2f7", "bold"]
+status_text_color = ["#c0caf5"]
+status_key_color = ["#7dcfff"]
+details_hint_color = ["#7dcfff"]
+preview_timestamp_color = ["#a9b1d6"]
+memory_snippet_color = ["#8aa1d1"]
+
+[theme.modal]
+background_color = "#1f2335"
+border_color = "#7aa2f7"
+key_color = "#7dcfff"
+text_color = "#c0caf5"
+muted_color = "#787c99"
+icon_color = "#565f89"
+warning_color = "#e0af68"
