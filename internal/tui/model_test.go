@@ -395,6 +395,7 @@ func TestStatsErrorUnlocksOnlyFailedSession(t *testing.T) {
 func TestTitleErrorKeepsEditorOpen(t *testing.T) {
 	model := Model{
 		titleEdit:  true,
+		titleBusy:  true,
 		titleInput: "new title",
 		sessions:   []opencode.Session{{ID: "ses_example"}},
 	}
@@ -403,8 +404,40 @@ func TestTitleErrorKeepsEditorOpen(t *testing.T) {
 	if !got.titleEdit || got.titleInput != "new title" {
 		t.Fatalf("title editor state was lost after save error: edit=%v input=%q", got.titleEdit, got.titleInput)
 	}
+	if got.titleBusy {
+		t.Fatal("title editor stayed busy after save error")
+	}
 	if got.status != "save failed" {
 		t.Fatalf("status = %q, want operation error", got.status)
+	}
+}
+
+func TestTitleEnterLocksEditorAndSanitizesInput(t *testing.T) {
+	model := Model{
+		titleEdit:  true,
+		titleInput: "  new\n\ttitle \x1b[31m ",
+		sessions:   []opencode.Session{{ID: "ses_example"}},
+		texts:      NewTexts("en"),
+	}
+	updated, cmd := model.handleKey(tea.KeyMsg{Type: tea.KeyEnter})
+	got := updated.(Model)
+	if cmd == nil || !got.titleBusy {
+		t.Fatal("title save did not lock the editor")
+	}
+	if got.titleInput != "new title [31m" {
+		t.Fatalf("title input = %q, want sanitized single line", got.titleInput)
+	}
+	updated, secondCmd := got.handleKey(tea.KeyMsg{Type: tea.KeyEnter})
+	got = updated.(Model)
+	if secondCmd != nil || !got.titleBusy {
+		t.Fatal("busy title editor accepted a duplicate submit")
+	}
+}
+
+func TestSanitizeTitleFragmentDropsControlCharacters(t *testing.T) {
+	got := sanitizeTitleFragment("hello\x00\nworld\t!")
+	if got != "helloworld!" {
+		t.Fatalf("sanitizeTitleFragment = %q", got)
 	}
 }
 

@@ -63,6 +63,7 @@ type Model struct {
 	err           error
 	help          bool
 	titleEdit     bool
+	titleBusy     bool
 	titleInput    string
 	deleteConfirm bool
 	deleteBusy    bool

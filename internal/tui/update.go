@@ -68,6 +68,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 		m.titleEdit = false
+		m.titleBusy = false
 		m.titleInput = ""
 		m.status = m.texts.TitleSaved
 		return m, nil
@@ -151,6 +152,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	case titleUpdateFailedMsg:
+		m.titleBusy = false
 		if msg.sessionID == m.currentID() {
 			m.status = msg.err.Error()
 		}
@@ -197,6 +199,13 @@ func (m Model) handleKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 
 	if m.titleEdit {
+		if m.titleBusy {
+			switch key.String() {
+			case "ctrl+c":
+				return m, tea.Quit
+			}
+			return m, nil
+		}
 		switch key.String() {
 		case "esc":
 			m.titleEdit = false
@@ -204,13 +213,16 @@ func (m Model) handleKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.status = m.texts.TitleCancelled
 			return m, nil
 		case "enter":
-			if strings.TrimSpace(m.titleInput) == "" {
+			title := sanitizeTitleInput(m.titleInput)
+			if title == "" {
 				m.status = m.texts.TitleEmpty
 				return m, nil
 			}
 			id := m.currentID()
+			m.titleBusy = true
+			m.titleInput = title
 			m.status = m.texts.SavingTitle
-			return m, m.saveTitle(id, strings.TrimSpace(m.titleInput))
+			return m, m.saveTitle(id, title)
 		case "ctrl+c":
 			return m, tea.Quit
 		}
@@ -221,7 +233,7 @@ func (m Model) handleKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 				m.titleInput = string(runes[:len(runes)-1])
 			}
 		case tea.KeyRunes:
-			m.titleInput += string(key.Runes)
+			m.titleInput += sanitizeTitleFragment(string(key.Runes))
 		case tea.KeySpace:
 			m.titleInput += " "
 		}

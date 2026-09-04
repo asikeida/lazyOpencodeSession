@@ -33,9 +33,15 @@ func (m Model) renderTitleDialog() string {
 	contentWidth := max(1, width-4)
 	inputWidth := max(1, contentWidth-3)
 	input := tailWidth(m.titleInput, max(1, inputWidth-1)) + m.styles.ModalKey.Render("▏")
+	if m.titleBusy {
+		input = tailWidth(m.titleInput, max(1, inputWidth))
+	}
 	inputLine := m.styles.ModalIcon.Render("✎") + " " + m.styles.ModalText.Render(input)
 	hint := m.styles.ModalKey.Render("Enter") + " " + m.styles.ModalMuted.Render(m.texts.SaveAction) +
 		"  " + m.styles.ModalKey.Render("Esc") + " " + m.styles.ModalMuted.Render(m.texts.CancelAction)
+	if m.titleBusy {
+		hint = m.styles.ModalMuted.Render(m.texts.SavingTitle)
+	}
 	return m.renderDialog(m.texts.SaveAsTitle, []string{
 		inputLine,
 		hint,

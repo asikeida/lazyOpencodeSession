@@ -81,6 +81,25 @@ func sanitizeSingleLine(value string) string {
 	}), " ")
 }
 
+func sanitizeTitleInput(value string) string {
+	return sanitizeSingleLine(value)
+}
+
+func sanitizeTitleFragment(value string) string {
+	var out []rune
+	for _, r := range value {
+		switch {
+		case unicode.IsControl(r):
+			continue
+		case r == '\n' || r == '\r' || r == '\t':
+			out = append(out, ' ')
+		default:
+			out = append(out, r)
+		}
+	}
+	return string(out)
+}
+
 func contextualSnippet(text string, terms []string, maxRunes int) string {
 	runes := []rune(text)
 	if len(runes) <= maxRunes {

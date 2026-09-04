@@ -288,6 +288,8 @@ The current details panel supports these fields:
 
 Statistics fields are loaded only for the selected session when one of them is enabled. `large_session` means the session message and part payloads are at least 10 MB. The right-side preview uses `preview.recent_messages_limit`; increasing it shows more user messages but also increases each preview query and render cost.
 
+Session titles are sanitized to a single line before saving. Newlines and terminal control characters are removed, and the editor stays locked while a save is in progress to avoid duplicate updates.
+
 ## Key Bindings
 
 ```text
