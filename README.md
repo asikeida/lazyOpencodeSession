@@ -32,6 +32,12 @@ For an architecture-level walkthrough, implementation details, code reading orde
 go build -o lazyocs ./cmd/lazyocs
 ```
 
+Run the generated-data performance benchmarks:
+
+```bash
+go test ./internal/opencode ./internal/tui -run '^$' -bench . -benchmem
+```
+
 ## Run
 
 ```bash

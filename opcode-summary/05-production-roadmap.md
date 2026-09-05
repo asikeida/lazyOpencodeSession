@@ -31,7 +31,7 @@
 - 删除前提供可选 SQLite 一致性备份。
 - 已为数据库锁定、schema 不兼容和剪贴板失败提供可操作错误信息。
 - 已增加 macOS `pbcopy` 支持；Windows 剪贴板明确为暂不支持。
-- 为启动、搜索、预览和统计建立 benchmark。
+- 已为启动、搜索、预览和统计建立生成数据 benchmark。
 - 为窄终端、tmux、SSH、Wayland 和 X11 做手工验收。
 
 ### P2：根据用户反馈决定
@@ -176,6 +176,23 @@ Windows 是否发布取决于：
 | 数据库锁定 | 超时后给出错误，TUI 不冻结 |
 
 这些值应在 CI 外使用生成数据和真实数据分别验证。真实数据库不能提交到仓库，生成 fixture 不能包含个人消息。
+
+当前 benchmark 使用 500 个根 session、每个 session 10 条生成消息，并建立生产查询所依赖的索引。运行命令：
+
+```bash
+go test ./internal/opencode ./internal/tui -run '^$' -bench . -benchmem
+```
+
+2026-09-05 在 Linux amd64、Intel i7-13620H 上的短时基线：
+
+| Benchmark | 时间 |
+| --- | ---: |
+| `BenchmarkStartupOpenAndList` | 约 2.95 ms/op |
+| `BenchmarkApplySearch` | 约 0.275 ms/op |
+| `BenchmarkRecentUserMessages` | 约 59 µs/op |
+| `BenchmarkSessionStats` | 约 36 µs/op |
+
+这些结果用于发现数量级回退，不作为跨机器的固定通过阈值。
 
 ## 8. 数据兼容策略
 

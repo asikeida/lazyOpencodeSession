@@ -196,7 +196,7 @@ func TestWriteOperationsFailClosedWithoutDeleteCascades(t *testing.T) {
 	}
 }
 
-func createCompatibleDatabase(t *testing.T, path string) {
+func createCompatibleDatabase(t testing.TB, path string) {
 	t.Helper()
 	db, err := sql.Open("sqlite", path)
 	if err != nil {
