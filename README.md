@@ -20,7 +20,7 @@ For an architecture-level walkthrough, implementation details, code reading orde
 - Resume selected session with `Enter`.
 - Edit the selected session title with `e`.
 - Delete the selected session with `d` after confirmation.
-- Copy selected session id with `y`.
+- Copy selected session id with `y` on Linux (Wayland/X11) and macOS.
 - Uses a terminal-friendly default color scheme inspired by lazygit.
 - Chinese UI with `--language auto|en|zh-CN`.
 - Auto-create the default config file at `~/.config/lazyocs/config.toml` on first run.
@@ -289,6 +289,8 @@ The current details panel supports these fields:
 Statistics fields are loaded only for the selected session when one of them is enabled. `large_session` means the session message and part payloads are at least 10 MB. The right-side preview uses `preview.recent_messages_limit`; increasing it shows more user messages but also increases each preview query and render cost.
 
 Session titles are sanitized to a single line before saving. Newlines and terminal control characters are removed, and the editor stays locked while a save is in progress to avoid duplicate updates.
+
+Clipboard integration tries `wl-copy`, `xclip`, or `xsel` on Linux and `pbcopy` on macOS. Windows clipboard integration is not currently supported. When copying fails, the status line shows both the cause and the session ID for manual copying.
 
 ## Key Bindings
 

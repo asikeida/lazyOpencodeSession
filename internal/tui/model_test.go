@@ -498,8 +498,10 @@ func TestClipboardMessagesUpdateStatus(t *testing.T) {
 	}
 	updated, _ = got.Update(clipboardCopyFailedMsg{sessionID: "ses_example", err: errors.New("copy failed")})
 	got = updated.(Model)
-	if !strings.Contains(got.status, "ses_example") {
-		t.Fatalf("failure status does not expose fallback ID: %q", got.status)
+	for _, want := range []string{"copy failed", "ses_example"} {
+		if !strings.Contains(got.status, want) {
+			t.Fatalf("failure status does not contain %q: %q", want, got.status)
+		}
 	}
 }
 

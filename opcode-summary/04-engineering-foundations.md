@@ -126,7 +126,7 @@ handleKey
  -> Update 状态栏
 ```
 
-进一步可以优先使用 OSC52，把复制内容通过终端控制序列交给终端模拟器；系统命令作为 fallback。macOS 需要 `pbcopy`，Windows 需要对应的 clipboard 实现或明确声明暂不支持。
+macOS 使用系统自带的 `pbcopy`。Windows 当前明确返回暂不支持；进一步可以优先使用 OSC52，把复制内容通过终端控制序列交给终端模拟器，并保留系统命令作为 fallback。
 
 ## 7. 错误处理
 

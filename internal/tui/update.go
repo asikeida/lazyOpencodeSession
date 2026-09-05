@@ -173,7 +173,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.status = m.texts.CopiedSessionID
 		return m, nil
 	case clipboardCopyFailedMsg:
-		m.status = fmt.Sprintf(m.texts.ClipboardUnavailable, msg.sessionID)
+		m.status = fmt.Sprintf(m.texts.ClipboardUnavailable, msg.err, msg.sessionID)
 		return m, nil
 	case searchDebounceMsg:
 		if m.mode != ModeSearch || !m.searchPending || msg.version != m.searchVersion {
