@@ -29,7 +29,7 @@
 - 将 `internal/tui/model.go` 按职责拆成多个同 package 文件。
 - 已完成：标题保存增加 busy 状态并过滤控制字符。
 - 删除前提供可选 SQLite 一致性备份。
-- 为数据库锁定和 schema 不兼容提供可操作错误信息；剪贴板失败提示已完成。
+- 已为数据库锁定、schema 不兼容和剪贴板失败提供可操作错误信息。
 - 已增加 macOS `pbcopy` 支持；Windows 剪贴板明确为暂不支持。
 - 为启动、搜索、预览和统计建立 benchmark。
 - 为窄终端、tmux、SSH、Wayland 和 X11 做手工验收。

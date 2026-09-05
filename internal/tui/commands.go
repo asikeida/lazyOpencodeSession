@@ -19,12 +19,12 @@ func (m Model) loadSessions() tea.Cmd {
 		defer cancel()
 		sessions, err := m.repo.ListSessions(ctx, opencode.SessionFilter{Limit: limit})
 		if err != nil {
-			return sessionsLoadFailedMsg{query: query, err: err}
+			return sessionsLoadFailedMsg{query: query, err: opencode.ActionableError(err)}
 		}
 		annotateDirectoryExists(sessions)
 		total, err := m.repo.CountSessions(ctx, opencode.SessionFilter{})
 		if err != nil {
-			return sessionsLoadFailedMsg{query: query, err: err}
+			return sessionsLoadFailedMsg{query: query, err: opencode.ActionableError(err)}
 		}
 		return sessionsLoadedMsg{query: query, sessions: sessions, total: total}
 	}
@@ -37,7 +37,7 @@ func (m Model) loadUserMemory() tea.Cmd {
 		defer cancel()
 		memories, err := m.repo.RecentUserMemory(ctx, time.Now().AddDate(0, 0, -days), 5000, 4000)
 		if err != nil {
-			return userMemoryFailedMsg{err: err}
+			return userMemoryFailedMsg{err: opencode.ActionableError(err)}
 		}
 		return userMemoryLoadedMsg{memories: memories}
 	}
@@ -49,7 +49,7 @@ func (m Model) loadPreview(sessionID string) tea.Cmd {
 		defer cancel()
 		messages, err := m.repo.RecentUserMessages(ctx, sessionID, m.previewLimit, 500)
 		if err != nil {
-			return previewLoadFailedMsg{sessionID: sessionID, err: err}
+			return previewLoadFailedMsg{sessionID: sessionID, err: opencode.ActionableError(err)}
 		}
 		return previewLoadedMsg{sessionID: sessionID, messages: messages}
 	}
@@ -61,7 +61,7 @@ func (m Model) loadStats(sessionID string) tea.Cmd {
 		defer cancel()
 		stats, err := m.repo.SessionStats(ctx, sessionID)
 		if err != nil {
-			return statsLoadFailedMsg{sessionID: sessionID, err: err}
+			return statsLoadFailedMsg{sessionID: sessionID, err: opencode.ActionableError(err)}
 		}
 		return statsLoadedMsg{sessionID: sessionID, stats: stats}
 	}
@@ -72,7 +72,7 @@ func (m Model) saveTitle(sessionID string, title string) tea.Cmd {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 		defer cancel()
 		if err := m.repo.UpdateSessionTitle(ctx, sessionID, title); err != nil {
-			return titleUpdateFailedMsg{sessionID: sessionID, err: err}
+			return titleUpdateFailedMsg{sessionID: sessionID, err: opencode.ActionableError(err)}
 		}
 		return titleUpdatedMsg{sessionID: sessionID, title: title}
 	}
@@ -84,7 +84,7 @@ func (m Model) loadDeleteImpact(sessionID string) tea.Cmd {
 		defer cancel()
 		impact, err := m.repo.DeleteImpact(ctx, sessionID)
 		if err != nil {
-			return deleteImpactFailedMsg{sessionID: sessionID, err: err}
+			return deleteImpactFailedMsg{sessionID: sessionID, err: opencode.ActionableError(err)}
 		}
 		return deleteImpactLoadedMsg{sessionID: sessionID, impact: impact}
 	}
@@ -95,7 +95,7 @@ func (m Model) deleteSession(sessionID string, expected opencode.DeleteImpact) t
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 		defer cancel()
 		if err := m.repo.DeleteSessionIfUnchanged(ctx, sessionID, expected); err != nil {
-			return sessionDeleteFailedMsg{sessionID: sessionID, err: err}
+			return sessionDeleteFailedMsg{sessionID: sessionID, err: opencode.ActionableError(err)}
 		}
 		return sessionDeletedMsg{sessionID: sessionID}
 	}

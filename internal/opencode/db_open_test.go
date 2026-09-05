@@ -165,6 +165,9 @@ func TestOpenRejectsIncompatibleBrowseSchema(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "missing session columns") {
 		t.Fatalf("Open error = %v, want readable schema incompatibility", err)
 	}
+	if !strings.Contains(err.Error(), "update lazyocs or select a compatible OpenCode database") {
+		t.Fatalf("Open error is not actionable: %v", err)
+	}
 }
 
 func TestWriteOperationsFailClosedWithoutDeleteCascades(t *testing.T) {

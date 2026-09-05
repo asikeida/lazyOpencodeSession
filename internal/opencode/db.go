@@ -49,16 +49,16 @@ func Open(ctx context.Context, path string, readOnly bool) (*SQLiteRepository, e
 	db.SetMaxOpenConns(1)
 	if err := db.PingContext(ctx); err != nil {
 		db.Close()
-		return nil, fmt.Errorf("failed to open OpenCode database: %w", err)
+		return nil, fmt.Errorf("failed to open OpenCode database: %w", ActionableError(err))
 	}
 	compat, err := inspectSchema(ctx, db)
 	if err != nil {
 		db.Close()
-		return nil, fmt.Errorf("failed to inspect OpenCode database schema: %w", err)
+		return nil, fmt.Errorf("failed to inspect OpenCode database schema: %w", ActionableError(err))
 	}
 	if !compat.Browse {
 		db.Close()
-		return nil, fmt.Errorf("incompatible OpenCode database schema: %s", strings.Join(compat.Issues, "; "))
+		return nil, fmt.Errorf("incompatible OpenCode database schema: %s; update lazyocs or select a compatible OpenCode database", strings.Join(compat.Issues, "; "))
 	}
 	return &SQLiteRepository{db: db, compat: compat}, nil
 }

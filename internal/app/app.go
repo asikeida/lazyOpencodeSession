@@ -94,7 +94,7 @@ func Check(ctx context.Context, opts Options) error {
 
 	sessions, err := repo.ListSessions(ctx, opencode.SessionFilter{Limit: opts.Limit})
 	if err != nil {
-		return err
+		return opencode.ActionableError(err)
 	}
 	fmt.Printf("database: %s\n", dbPath)
 	compat := repo.Compatibility()
@@ -102,7 +102,7 @@ func Check(ctx context.Context, opts Options) error {
 	if opts.RecentDays > 0 {
 		memories, err := repo.RecentUserMemory(ctx, time.Now().AddDate(0, 0, -opts.RecentDays), 5000, 4000)
 		if err != nil {
-			return err
+			return opencode.ActionableError(err)
 		}
 		fmt.Printf("memory: %d user messages (%dd)\n", len(memories), opts.RecentDays)
 	}
