@@ -1,345 +1,254 @@
 # lazyOpencodeSession
 
-`lazyOpencodeSession` is a fast terminal UI for browsing, searching, and resuming OpenCode sessions.
+[English](./README.md) | [简体中文](./README.zh-CN.md)
 
-The command name is `lazyocs`.
+`lazyocs` is a fast terminal UI for browsing, searching, previewing, and resuming local [OpenCode](https://opencode.ai/) sessions.
 
-Current release target: `v0.1.0`. See [`CHANGELOG.md`](./CHANGELOG.md) for release notes and [`COMPATIBILITY.md`](./COMPATIBILITY.md) before using write operations with a new OpenCode database schema.
+[![CI](https://github.com/asikeida/lazyOpencodeSession/actions/workflows/ci.yml/badge.svg)](https://github.com/asikeida/lazyOpencodeSession/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/asikeida/lazyOpencodeSession)](https://github.com/asikeida/lazyOpencodeSession/releases)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 
-## Technical Documentation
+> `lazyocs` reads OpenCode's internal SQLite database. Run `lazyocs --check` after upgrading OpenCode, and review [COMPATIBILITY.md](./COMPATIBILITY.md) before enabling write operations on an unfamiliar schema.
 
-For an architecture-level walkthrough, implementation details, code reading order, and production roadmap, see [`opcode-summary/README.md`](./opcode-summary/README.md). The documentation covers the Bubble Tea state machine, SQLite safety and performance, configuration, testing, and release engineering.
+## Features
 
-## MVP Features
+- Browse root sessions ordered by recent activity.
+- Search session metadata and recent user messages with multi-term AND matching.
+- Preview recent prompts without loading entire message payloads.
+- Resume a session in OpenCode with `Enter`.
+- Edit titles with single-line input sanitization and duplicate-submit protection.
+- Delete a session tree only after impact analysis, confirmation, and transactional scope revalidation.
+- Use real SQLite read-only mode with `--read-only`.
+- Switch between responsive one-pane and two-pane layouts.
+- Configure language, fields, preview depth, borders, layout, and themes.
+- Copy session IDs through Wayland/X11 tools on Linux, `pbcopy` on macOS, or `clip.exe` on Windows.
+- Run as a single native binary without CGO.
 
-- Read OpenCode SQLite database with title editing enabled by default.
-- List root OpenCode sessions by recent update time.
-- Search session metadata and recent user messages with `/`.
-- Multi-term search with AND semantics, for example `windows iso` matches sessions containing both words.
-- Show session details without scanning large message payloads.
-- Show whether the session directory still exists.
-- Lazy-load recent user message preview with `p`.
-- Resume selected session with `Enter`.
-- Edit the selected session title with `e`.
-- Delete the selected session with `d` after confirmation.
-- Copy selected session id with `y` on Linux (Wayland/X11) and macOS.
-- Uses a terminal-friendly default color scheme inspired by lazygit.
-- Chinese UI with `--language auto|en|zh-CN`.
-- Auto-create the default config file at `~/.config/lazyocs/config.toml` on first run.
-- Configurable details fields.
+## Downloads
 
-## Build
+All official artifacts are published on [GitHub Releases](https://github.com/asikeida/lazyOpencodeSession/releases). Verify downloads with the accompanying `checksums.txt`.
 
-```bash
-go build -o lazyocs ./cmd/lazyocs
+| Platform | Architecture | Artifact |
+| --- | --- | --- |
+| Windows | x86-64 | `lazyocs_VERSION_windows_amd64.zip` containing `lazyocs.exe` |
+| Windows | ARM64 | `lazyocs_VERSION_windows_arm64.zip` containing `lazyocs.exe` |
+| macOS | Intel | `lazyocs_VERSION_darwin_amd64.tar.gz` |
+| macOS | Apple Silicon | `lazyocs_VERSION_darwin_arm64.tar.gz` |
+| Linux | x86-64 / ARM64 | `.tar.gz`, `.deb`, `.rpm`, and `.pkg.tar.zst` |
+
+### Windows
+
+Download and extract the matching ZIP, then run it from PowerShell or Windows Terminal:
+
+```powershell
+.\lazyocs.exe --check
+.\lazyocs.exe
 ```
 
-Run the generated-data performance benchmarks:
+The release is a real native `.exe`; no Go installation is required. Add its directory to `PATH` if you want to call `lazyocs` globally. Windows builds are currently experimental and unsigned. Session ID copying uses the system `clip.exe`; failures still show the ID for manual copying.
+
+OpenCode stores its database at `%USERPROFILE%\.local\share\opencode\opencode.db`. Pass `--db` if your installation uses another path.
+
+### macOS
+
+Choose `darwin_arm64` for Apple Silicon or `darwin_amd64` for Intel:
 
 ```bash
-go test ./internal/opencode ./internal/tui -run '^$' -bench . -benchmem
-```
-
-## Run
-
-```bash
+tar -xzf lazyocs_VERSION_darwin_arm64.tar.gz
+./lazyocs --check
 ./lazyocs
 ```
 
-Release archives include the binary, documentation, and the `themes/` directory. Keep `themes/` beside the executable to use bundled `theme_name` presets.
-
-Use a custom OpenCode database:
+The current macOS binary is unsigned and not notarized. Gatekeeper may quarantine it. After verifying `checksums.txt` and only if you trust the download, remove the quarantine attribute:
 
 ```bash
-./lazyocs --db ~/.local/share/opencode/opencode.db
+xattr -d com.apple.quarantine ./lazyocs
 ```
 
-Use Chinese UI:
+Keep the extracted `themes/` directory beside the binary, or copy those files to `~/.config/lazyocs/themes/`. A polished public macOS channel should later add Apple Developer ID signing, notarization, and a Homebrew tap.
+
+### Linux Archive
 
 ```bash
-./lazyocs --language zh-CN
+tar -xzf lazyocs_VERSION_linux_amd64.tar.gz
+./lazyocs --check
+./lazyocs
 ```
 
-`auto` is the default. It uses Chinese when your locale contains `zh`, `cn`, or `CN`.
-
-Check database access without launching the TUI:
+### Debian and Ubuntu
 
 ```bash
-./lazyocs --check --limit 5
+pkexec apt install ./lazyocs_VERSION_amd64.deb
+lazyocs --check
 ```
 
-Use read-only mode when needed:
+Use the `arm64.deb` artifact on ARM64 systems.
+
+### Fedora, RHEL, and openSUSE
 
 ```bash
-./lazyocs --read-only
+pkexec dnf install ./lazyocs_VERSION_amd64.rpm
+lazyocs --check
 ```
 
-Alternatively set `read_only = true` in `~/.config/lazyocs/config.toml`.
+On systems without `dnf`, install the RPM with the distribution's normal package tool.
 
-Print a sample config:
+### Arch Linux
+
+Install the generated package directly:
 
 ```bash
-./lazyocs --print-config
+pkexec pacman -U ./lazyocs_VERSION_amd64.pkg.tar.zst
 ```
 
-Use a custom config file:
+GoReleaser also generates `lazyocs-bin` AUR metadata. It is not uploaded automatically until an AUR package repository and maintainer SSH key are configured. Once published, users will be able to install it with an AUR helper such as `yay -S lazyocs-bin`.
+
+## Build From Source
+
+Go 1.25.6 or newer is required by the current module:
 
 ```bash
-./lazyocs --config ~/lazyocs.toml
+git clone https://github.com/asikeida/lazyOpencodeSession.git
+cd lazyOpencodeSession
+go build -o lazyocs ./cmd/lazyocs
+./lazyocs --check
 ```
 
-CLI flags override config file values. Custom config paths passed with `--config` must already exist.
+Cross-compile a Windows executable from Linux or macOS:
 
-## Config
-
-Default config path:
-
-```text
-~/.config/lazyocs/config.toml
+```bash
+CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -o lazyocs.exe ./cmd/lazyocs
 ```
 
-If this file does not exist, `lazyocs` creates it with the default sample content on first run. Existing config files are never overwritten.
+Cross-compile macOS binaries:
 
-Sample config:
+```bash
+CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -o lazyocs-darwin-amd64 ./cmd/lazyocs
+CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -o lazyocs-darwin-arm64 ./cmd/lazyocs
+```
+
+## Usage
+
+```bash
+lazyocs
+lazyocs --check --limit 5
+lazyocs --read-only
+lazyocs --language zh-CN
+lazyocs --db ~/.local/share/opencode/opencode.db
+lazyocs --config ~/lazyocs.toml
+lazyocs --print-config
+lazyocs --version
+```
+
+CLI flags override config file values. The default config is `~/.config/lazyocs/config.toml`; it is created on first run and never overwritten.
+
+Minimal configuration:
 
 ```toml
-# OpenCode SQLite database path. Default: ~/.local/share/opencode/opencode.db.
-# Leave empty to use the default path.
-# OpenCode SQLite 数据库路径。默认值：~/.local/share/opencode/opencode.db。
-# 留空表示使用默认路径。
 db = ""
-# UI language: auto, en, or zh-CN. Default: auto.
-# 界面语言：auto、en 或 zh-CN。默认值：auto。
 language = "auto"
-# Maximum number of sessions loaded into the list. Default: 500.
-# 会话列表最多加载的数量。默认值：500。
 limit = 500
-# OpenCode executable or command path used by Enter. Default: opencode.
-# 按 Enter 恢复会话时使用的 OpenCode 命令或路径。默认值：opencode。
 opencode = "opencode"
-# Database write protection. Default: false.
-# 数据库写保护。默认值：false。使用 --read-only 或设为 true 可禁止修改标题。
 read_only = false
-
-# Optional built-in or local theme preset name. Example: lazygit-classic, moss, iris-night.
-# 可选的内置或本地主题预设名称，例如 lazygit-classic、moss、iris-night。
-theme_name = ""
-
-# Optional external theme file. Relative paths are resolved from this config file.
-# 可选的外部主题文件。相对路径将基于当前配置文件解析。
+theme_name = "lazygit-classic"
 theme_file = ""
 
 [search]
-# User-message memory window in days. Use 0 to disable. Default: 7.
-# 用户消息记忆搜索的时间范围（天）。设为 0 可关闭。默认值：7。
 recent_days = 7
 
 [preview]
-# Number of recent user messages shown in the right-side preview. Default: 5.
-# 右侧预览显示的最近用户消息条数。默认值：5。
 recent_messages_limit = 5
 
 [ui]
-# Panel border style: rounded, single, double, hidden, or bold. Default: rounded.
-# 面板边框样式：rounded、single、double、hidden 或 bold。默认值：rounded。
 border_style = "rounded"
-# Left panel width ratio in two-pane mode. Default: 0.45.
-# 双栏模式下左侧面板宽度比例。默认值：0.45。
 split_ratio = 0.45
-# Minimum terminal width for two-pane mode. Default: 110.
-# 进入双栏模式所需的最小终端宽度。默认值：110。
 two_pane_min_width = 110
 
-# Theme configuration. Uncomment and adjust any values you want to override.
-# 主题配置。只需取消注释并修改你想覆盖的值。
-#
-# [theme]
-# active_border_color = ["green", "bold"]
-# inactive_border_color = ["green"]
-# searching_active_border_color = ["cyan", "bold"]
-# title_color = ["green", "bold"]
-# accent_color = ["green", "bold"]
-# options_text_color = ["blue"]
-# default_fg_color = ["default"]
-# muted_fg_color = ["250"]
-# match_color = ["cyan", "bold", "underline"]
-# focused_selected_match_color = ["229", "underline", "bold"]
-# inactive_selected_match_color = ["cyan", "underline"]
-# error_color = ["red", "bold"]
-# warning_color = ["yellow"]
-# selected_line_bg_color = ["blue"]
-# selected_line_fg_color = ["white", "bold"]
-# inactive_view_selected_line_color = ["bold"]
-# status_mode_color = ["252"]
-# status_text_color = ["252"]
-# status_key_color = ["blue"]
-# details_hint_color = ["blue"]
-# preview_timestamp_color = ["250"]
-# memory_snippet_color = ["250"]
-#
-# [theme.modal]
-# background_color = "#202330"
-# border_color = "#A8B47A"
-# key_color = "#69AFC1"
-# text_color = "#B9C2D0"
-# muted_color = "#778195"
-# icon_color = "#6096A3"
-# warning_color = "#B5A06D"
-
 [details.fields]
-# Session title. Default: true.
-# 会话标题。默认值：true。
 title = true
-# Session ID. Default: true.
-# 会话 ID。默认值：true。
 session = true
-# Project ID. Default: true.
-# 项目 ID。默认值：true。
 project = true
-# Session working directory. Default: true.
-# 会话工作目录。默认值：true。
 directory = true
-# Whether the session directory currently exists. Default: true.
-# 会话目录当前是否存在。默认值：true。
 path_status = true
-# Number of messages. Loaded lazily when enabled. Default: false.
-# 消息数量。启用后按需加载。默认值：false。
 message_count = false
-# Number of parts. Loaded lazily when enabled. Default: false.
-# 内容片段数量。启用后按需加载。默认值：false。
 part_count = false
-# Combined message and part payload size. Loaded lazily. Default: false.
-# 消息和片段数据总大小。启用后按需加载。默认值：false。
 size = false
-# Whether payload size is at least 10 MB. Loaded lazily. Default: false.
-# 数据总大小是否达到 10 MB。启用后按需加载。默认值：false。
 large_session = false
-# Last update time. Default: true.
-# 最后更新时间。默认值：true。
 updated = true
-# Creation time. Default: true.
-# 创建时间。默认值：true。
 created = true
-# Model information. Default: true.
-# 模型信息。默认值：true。
 model = true
-# Agent name. Default: true.
-# Agent 名称。默认值：true。
 agent = true
-# Session cost. Default: true.
-# 会话费用。默认值：true。
 cost = true
-# Token usage. Default: true.
-# Token 使用情况。默认值：true。
 tokens = true
-# Command used to resume the session. Default: false.
-# 恢复会话时使用的命令。默认值：false。
 resume_command = false
 ```
 
-Use `true` to show a field and `false` to hide it. `1` and `0` are also accepted.
-
-The default color scheme follows lazygit's general terminal style: green accent/border, blue selected line, blue options text, and terminal-provided background. These defaults can now be overridden through `[theme]` and `[theme.modal]` in the config file.
-
-Theme overrides live under `[theme]` and `[theme.modal]`. Color entries accept named ANSI colors such as `green`, numeric 256-color strings such as `250`, and hex values such as `#A8B47A`. Style arrays can also include `bold`, `underline`, `faint`, `reverse`, and `italic`.
-
-Layout and frame behaviour live under `[ui]`. Use this section for structural choices like border style, split ratio, and the minimum width required for two-pane mode.
-
-If you want to switch among known presets quickly, set `theme_name`. lazyocs first looks in `~/.config/lazyocs/themes/`, then in `themes/` next to the executable. If you want to share or distribute a theme separately from your main config, set `theme_file` and move the whole `[theme]` block into another TOML file. Inline `[theme]` values still override both preset and file.
-
-Bundled presets:
-
-- `themes/lazygit-classic.toml`
-- `themes/moss.toml`
-- `themes/iris-night.toml`
-- `themes/tokyonight-storm.toml`
-- `themes/catppuccin-macchiato.toml`
-- `themes/nord-frost.toml`
-- `themes/retro-lime.toml`
-- `themes/retro-lime-soft.toml`
-- `themes/retro-lime-neon.toml`
-
-Example:
-
-```toml
-theme_name = "moss"
-
-[theme]
-active_border_color = ["yellow", "bold"]
-```
-
-Or with an explicit file:
-
-```toml
-theme_file = "themes/moss.toml"
-
-[theme]
-active_border_color = ["yellow", "bold"]
-```
-
-The current details panel supports these fields:
-
-- `title`
-- `session`
-- `project`
-- `directory`
-- `path_status`
-- `message_count`
-- `part_count`
-- `size`
-- `large_session`
-- `updated`
-- `created`
-- `model`
-- `agent`
-- `cost`
-- `tokens`
-- `resume_command`
-
-Statistics fields are loaded only for the selected session when one of them is enabled. `large_session` means the session message and part payloads are at least 10 MB. The right-side preview uses `preview.recent_messages_limit`; increasing it shows more user messages but also increases each preview query and render cost.
-
-Session titles are sanitized to a single line before saving. Newlines and terminal control characters are removed, and the editor stays locked while a save is in progress to avoid duplicate updates.
-
-Clipboard integration tries `wl-copy`, `xclip`, or `xsel` on Linux and `pbcopy` on macOS. Windows clipboard integration is not currently supported. When copying fails, the status line shows both the cause and the session ID for manual copying.
-
-## License
-
-MIT. See [`LICENSE`](./LICENSE).
+Run `lazyocs --print-config` for the fully commented bilingual configuration.
 
 ## Key Bindings
 
-```text
-q / Ctrl+C     Quit
-↑/k ↓/j        Move selection
-PageUp/Down    Jump list
-/              Search metadata and recent user messages
-↑/↓            Move selection while searching
-Ctrl-J/K       Move selection while typing search text
-Ctrl-P         Preview current session while typing search text
-Esc            Clear search
-Enter          Resume selected session
-e              Edit current session title
-d              Delete current session (confirmation required)
-p              Preview recent user messages
-y              Copy session id
-r              Reload sessions
-?              Help
+| Key | Action |
+| --- | --- |
+| `q`, `Ctrl+C` | Quit |
+| `j/k`, arrows | Move selection or scroll the focused pane |
+| `h/l` | Switch pane focus |
+| `PgUp/PgDn`, `g/G` | Page or jump in the active view |
+| `/` | Search metadata and recent user messages |
+| `Enter` | Resume selected session |
+| `e` | Edit title |
+| `d` | Analyze and confirm deletion |
+| `p` | Load recent user-message preview |
+| `y` | Copy session ID |
+| `r` | Reload sessions |
+| `?` | Show help |
+
+## Themes
+
+Bundled presets include `lazygit-classic`, `moss`, `iris-night`, `tokyonight-storm`, `catppuccin-macchiato`, `nord-frost`, and three `retro-lime` variants.
+
+`theme_name` is resolved from:
+
+1. `themes/` beside the config file.
+2. `themes/` beside the executable.
+3. The package data directory, normally `/usr/share/lazyocs/themes` on Linux.
+
+Inline `[theme]` values override both `theme_name` and `theme_file`. Colors accept ANSI names, 256-color numbers, and hex values. Styles accept `bold`, `underline`, `faint`, `reverse`, and `italic`.
+
+## Safety and Compatibility
+
+- Read-write mode uses SQLite `mode=rw` and never creates a missing database.
+- Read-only mode uses SQLite `mode=ro` at the data-source level.
+- Schema capabilities are inspected before the TUI starts.
+- Rename and delete fail closed when required schema capabilities are missing.
+- Delete confirmation shows the complete session/message/part scope.
+- The scope is checked again inside the delete transaction.
+- Database lock and timeout errors include a retry action.
+- Search and previews are bounded to avoid scanning an entire large payload table.
+
+See [COMPATIBILITY.md](./COMPATIBILITY.md) for the exact capability matrix.
+
+## Development
+
+```bash
+go test ./...
+go test -race ./...
+go vet ./...
+go test ./internal/opencode ./internal/tui -run '^$' -bench . -benchmem
 ```
 
-## Safety
+Technical architecture and engineering notes are in [`opcode-summary/`](./opcode-summary/README.md).
 
-The default mode opens the OpenCode database with SQLite `mode=rw` so title editing works directly. Use `--read-only` or `read_only = true` to prevent writes; read-write mode uses `mode=rw` and never creates a new database.
+## Release Process
 
-## Search Behavior
+Pushing a semantic-version tag triggers GitHub Actions and GoReleaser:
 
-Search terms are split by spaces. All terms must match the combined session metadata and recent user messages, but they do not need to be adjacent or come from the same source.
-
-```text
-windows iso
+```bash
+git tag -a v0.1.0 -m "v0.1.0"
+git push origin v0.1.0
 ```
 
-This can match `windows` in the title and `iso` in one of your recent prompts. When user-message memory contributes to a match, a muted one-line excerpt appears below the session. Child-session messages are attributed to the root session that can be resumed from the list.
+The workflow tests the project, builds all release targets, creates archives and Linux packages, injects the version, and publishes SHA256 checksums to GitHub Releases. AUR, Homebrew, WinGet, Scoop, Microsoft signing, and Apple notarization require separate publisher accounts, repositories, or signing credentials and are intentionally not enabled with placeholder secrets.
 
-`search.recent_days` defaults to 7, accepts 0-365, and uses `0` to disable memory search. Memory is loaded only into the current process, is never written to a sidecar index, and is capped at 5,000 messages with 4,000 runes per message.
+## License
 
-While typing in the search box, plain `j`, `k`, and `p` are treated as text input. Use `↑/↓` or `Ctrl-J/Ctrl-K` to move the selection without leaving search input. Use `Ctrl-P` to preview the selected session without leaving search input.
+[MIT](./LICENSE)

@@ -15,23 +15,82 @@ builds:
     goos:
       - linux
       - darwin
+      - windows
     goarch:
       - amd64
       - arm64
     mod_timestamp: "{{ .CommitTimestamp }}"
 
 archives:
-  - ids:
+  - id: release-archives
+    ids:
       - lazyocs
     formats:
       - tar.gz
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     files:
       - LICENSE
       - README.md
+      - README.zh-CN.md
       - CHANGELOG.md
       - COMPATIBILITY.md
       - themes/*.toml
+
+nfpms:
+  - id: linux-packages
+    ids:
+      - lazyocs
+    package_name: lazyocs
+    file_name_template: "{{ .PackageName }}_{{ .Version }}_{{ .Arch }}"
+    vendor: asikeida
+    homepage: https://github.com/asikeida/lazyOpencodeSession
+    maintainer: asikeida
+    description: Fast terminal UI for browsing, searching, and resuming OpenCode sessions.
+    license: MIT
+    formats:
+      - deb
+      - rpm
+      - archlinux
+    bindir: /usr/bin
+    contents:
+      - src: themes/
+        dst: /usr/share/lazyocs/themes
+        type: tree
+      - src: LICENSE
+        dst: /usr/share/licenses/lazyocs/LICENSE
+      - src: README.md
+        dst: /usr/share/doc/lazyocs/README.md
+      - src: README.zh-CN.md
+        dst: /usr/share/doc/lazyocs/README.zh-CN.md
+      - src: COMPATIBILITY.md
+        dst: /usr/share/doc/lazyocs/COMPATIBILITY.md
+
+aurs:
+  - name: lazyocs-bin
+    ids:
+      - release-archives
+    homepage: https://github.com/asikeida/lazyOpencodeSession
+    description: Fast terminal UI for browsing, searching, and resuming OpenCode sessions.
+    maintainers:
+      - asikeida
+    license: MIT
+    skip_upload: true
+    provides:
+      - lazyocs
+    conflicts:
+      - lazyocs
+    package: |-
+      install -Dm755 "./lazyocs" "${pkgdir}/usr/bin/lazyocs"
+      install -Dm644 "./LICENSE" "${pkgdir}/usr/share/licenses/lazyocs/LICENSE"
+      install -Dm644 "./README.md" "${pkgdir}/usr/share/doc/lazyocs/README.md"
+      install -Dm644 "./README.zh-CN.md" "${pkgdir}/usr/share/doc/lazyocs/README.zh-CN.md"
+      install -Dm644 "./COMPATIBILITY.md" "${pkgdir}/usr/share/doc/lazyocs/COMPATIBILITY.md"
+      install -d "${pkgdir}/usr/share/lazyocs/themes"
+      install -Dm644 ./themes/*.toml "${pkgdir}/usr/share/lazyocs/themes/"
 
 checksum:
   name_template: checksums.txt

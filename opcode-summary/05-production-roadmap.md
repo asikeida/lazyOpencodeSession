@@ -26,11 +26,11 @@
 
 ### P1：第一个稳定版本建议完成
 
-- 将 `internal/tui/model.go` 按职责拆成多个同 package 文件。
+- 已完成：将 `internal/tui/model.go` 按职责拆成多个同 package 文件。
 - 已完成：标题保存增加 busy 状态并过滤控制字符。
-- 删除前提供可选 SQLite 一致性备份。
+- 删除前可选 SQLite 一致性备份经产品决策暂缓。
 - 已为数据库锁定、schema 不兼容和剪贴板失败提供可操作错误信息。
-- 已增加 macOS `pbcopy` 支持；Windows 剪贴板明确为暂不支持。
+- 已增加 macOS `pbcopy` 和 Windows `clip.exe` 支持。
 - 已为启动、搜索、预览和统计建立生成数据 benchmark。
 - 为窄终端、tmux、SSH、Wayland 和 X11 做手工验收。
 
@@ -105,7 +105,7 @@ go build \
 var version = "dev"
 ```
 
-因此不需要修改运行时代码即可注入正式版本号。首发目标为 `v0.1.0`，推送同名 tag 后构建 Linux/macOS 的 amd64/arm64 归档和 SHA256 校验文件。
+因此不需要修改运行时代码即可注入正式版本号。首发目标为 `v0.1.0`，推送同名 tag 后构建 Linux、macOS、Windows 的 amd64/arm64 归档、Linux 原生包和 SHA256 校验文件。
 
 ## 5. 发布目标
 
@@ -116,13 +116,15 @@ linux/amd64
 linux/arm64
 darwin/amd64
 darwin/arm64
+windows/amd64
+windows/arm64
 ```
 
-Windows 是否发布取决于：
+Windows 已提供实验性 ZIP/EXE 产物，但正式标记稳定前仍需：
 
 - OpenCode 数据目录是否已确认。
 - alternate screen 和终端兼容性是否验证。
-- 剪贴板实现是否补齐。
+- 在 `clip.exe` 路径上完成真机剪贴板验收。
 - 路径和 `~` 展开语义是否测试。
 
 发布物至少包括：
@@ -132,6 +134,13 @@ Windows 是否发布取决于：
 - CHANGELOG。
 - LICENSE。
 - 支持的 OpenCode 版本或 schema 范围。
+
+当前 GoReleaser 还会生成：
+
+- Debian/Ubuntu `.deb`。
+- Fedora/RHEL/openSUSE `.rpm`。
+- Arch Linux `.pkg.tar.zst`。
+- `lazyocs-bin` 的 AUR `PKGBUILD` 和 `.SRCINFO`；实际上传需要单独的 AUR 仓库和 SSH 密钥。
 
 ## 6. 可观测性
 

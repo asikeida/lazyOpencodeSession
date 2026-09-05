@@ -16,6 +16,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Read-only mode, schema capability checks, and actionable database lock errors.
 - Configurable details, preview depth, panel layout, language, themes, and external theme files.
 - Linux and macOS clipboard integration with asynchronous timeout handling.
+- Windows amd64/arm64 zip builds and `clip.exe` clipboard integration.
+- Linux deb, rpm, and Arch Linux package artifacts.
+- Generated `lazyocs-bin` AUR package metadata and bilingual release documentation.
 - Generated-data performance benchmarks and GitHub Actions continuous integration.
 
 ### Security

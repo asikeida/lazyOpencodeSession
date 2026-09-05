@@ -40,6 +40,8 @@ func clipboardCommands(goos string) [][]string {
 			{"xclip", "-selection", "clipboard"},
 			{"xsel", "--clipboard", "--input"},
 		}
+	case "windows":
+		return [][]string{{"clip.exe"}}
 	default:
 		return nil
 	}

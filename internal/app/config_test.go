@@ -119,6 +119,14 @@ func TestResolveOptionsRejectsMissingThemePreset(t *testing.T) {
 	}
 }
 
+func TestThemePresetCandidatesIncludeSystemPackageDirectory(t *testing.T) {
+	candidates := themePresetCandidates("/home/user/.config/lazyocs/config.toml", "/usr/bin/lazyocs", "moss.toml")
+	want := filepath.FromSlash("/usr/share/lazyocs/themes/moss.toml")
+	if candidates[len(candidates)-1] != want {
+		t.Fatalf("system theme candidate = %q, want %q", candidates[len(candidates)-1], want)
+	}
+}
+
 func TestResolveOptionsRejectsMissingThemeFile(t *testing.T) {
 	configPath := filepath.Join(t.TempDir(), "config.toml")
 	if err := os.WriteFile(configPath, []byte("theme_file = 'missing-theme.toml'\n"), 0o600); err != nil {

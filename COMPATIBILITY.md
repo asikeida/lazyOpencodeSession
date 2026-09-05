@@ -10,8 +10,10 @@ Release archives are built for:
 - Linux arm64
 - macOS amd64
 - macOS arm64
+- Windows amd64
+- Windows arm64
 
-Windows is not currently released or manually validated. Its clipboard integration is also unsupported.
+Windows builds are experimental until they complete native terminal testing. Clipboard integration uses the system `clip.exe`, and copy failures expose the session ID for manual copying.
 
 ## Database Capabilities
 
@@ -39,4 +41,11 @@ Unknown or changed schemas are never assumed safe for writes. Use `--read-only` 
 
 - Linux: tries `wl-copy`, `xclip`, then `xsel`.
 - macOS: uses `pbcopy`.
-- Windows: unsupported; the status line exposes the session ID for manual copying.
+- Windows: uses the system `clip.exe`.
+
+## Package Status
+
+- Linux tar.gz, deb, rpm, and Arch Linux packages are generated automatically.
+- Windows binaries are distributed as zip archives containing `lazyocs.exe`.
+- macOS binaries are distributed as unsigned tar.gz archives and are not notarized.
+- AUR metadata is generated as `lazyocs-bin`, but publishing requires a separately registered AUR package repository and maintainer SSH key.

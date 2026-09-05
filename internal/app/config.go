@@ -310,19 +310,29 @@ func resolveThemeName(configPath string, name string) (string, error) {
 	if filepath.Ext(fileName) == "" {
 		fileName += ".toml"
 	}
-	configDir := filepath.Dir(configPath)
-	candidates := []string{
-		filepath.Join(configDir, "themes", fileName),
-	}
+	executable := ""
 	if exe, err := os.Executable(); err == nil && exe != "" {
-		candidates = append(candidates, filepath.Join(filepath.Dir(exe), "themes", fileName))
+		executable = exe
 	}
+	candidates := themePresetCandidates(configPath, executable, fileName)
 	for _, candidate := range candidates {
 		if _, err := os.Stat(candidate); err == nil {
 			return candidate, nil
 		}
 	}
 	return "", fmt.Errorf("theme preset not found: %s", name)
+}
+
+func themePresetCandidates(configPath string, executable string, fileName string) []string {
+	candidates := []string{filepath.Join(filepath.Dir(configPath), "themes", fileName)}
+	if executable == "" {
+		return candidates
+	}
+	exeDir := filepath.Dir(executable)
+	return append(candidates,
+		filepath.Join(exeDir, "themes", fileName),
+		filepath.Clean(filepath.Join(exeDir, "..", "share", "lazyocs", "themes", fileName)),
+	)
 }
 
 func loadThemeFile(path string) (rawThemeFile, error) {
