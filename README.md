@@ -4,6 +4,8 @@
 
 The command name is `lazyocs`.
 
+Current release target: `v0.1.0`. See [`CHANGELOG.md`](./CHANGELOG.md) for release notes and [`COMPATIBILITY.md`](./COMPATIBILITY.md) before using write operations with a new OpenCode database schema.
+
 ## Technical Documentation
 
 For an architecture-level walkthrough, implementation details, code reading order, and production roadmap, see [`opcode-summary/README.md`](./opcode-summary/README.md). The documentation covers the Bubble Tea state machine, SQLite safety and performance, configuration, testing, and release engineering.
@@ -43,6 +45,8 @@ go test ./internal/opencode ./internal/tui -run '^$' -bench . -benchmem
 ```bash
 ./lazyocs
 ```
+
+Release archives include the binary, documentation, and the `themes/` directory. Keep `themes/` beside the executable to use bundled `theme_name` presets.
 
 Use a custom OpenCode database:
 
@@ -297,6 +301,10 @@ Statistics fields are loaded only for the selected session when one of them is e
 Session titles are sanitized to a single line before saving. Newlines and terminal control characters are removed, and the editor stays locked while a save is in progress to avoid duplicate updates.
 
 Clipboard integration tries `wl-copy`, `xclip`, or `xsel` on Linux and `pbcopy` on macOS. Windows clipboard integration is not currently supported. When copying fails, the status line shows both the cause and the session ID for manual copying.
+
+## License
+
+MIT. See [`LICENSE`](./LICENSE).
 
 ## Key Bindings
 

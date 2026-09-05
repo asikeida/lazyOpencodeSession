@@ -90,7 +90,7 @@ go test -race ./...
 go build ./cmd/lazyocs
 ```
 
-项目不是线上服务，因此不配置部署型 CD。等确实需要向用户提供多平台预编译包时，再增加 Tag 驱动的 GoReleaser 和版本注入：
+项目不是线上服务，因此不配置部署型 CD。当前已增加 Tag 驱动的 GoReleaser 发布工作流，负责构建预编译包和注入版本号：
 
 ```bash
 go build \
@@ -105,7 +105,7 @@ go build \
 var version = "dev"
 ```
 
-因此不需要修改运行时代码即可注入正式版本号。
+因此不需要修改运行时代码即可注入正式版本号。首发目标为 `v0.1.0`，推送同名 tag 后构建 Linux/macOS 的 amd64/arm64 归档和 SHA256 校验文件。
 
 ## 5. 发布目标
 
