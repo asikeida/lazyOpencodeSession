@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-09-05
+
+### Added
+
+- Configurable `[resume]` command arguments for cases such as `opencode --proxy`.
+
 ## [0.1.0] - 2026-09-05
 
 ### Added
@@ -26,5 +32,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Write operations fail closed when required schema capabilities or delete cascades are absent.
 - Title input strips control characters and deletion requires explicit confirmation.
 
-[Unreleased]: https://github.com/asikeida/lazyOpencodeSession/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/asikeida/lazyOpencodeSession/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/asikeida/lazyOpencodeSession/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/asikeida/lazyOpencodeSession/releases/tag/v0.1.0

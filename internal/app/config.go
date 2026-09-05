@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/asikeida/lazyOpencodeSession/internal/resume"
 	lazytui "github.com/asikeida/lazyOpencodeSession/internal/tui"
 	"github.com/pelletier/go-toml/v2"
 )
@@ -25,7 +26,9 @@ language = "auto"
 # 会话列表最多加载的数量。默认值：500。
 limit = 500
 # OpenCode executable or command path used by Enter. Default: opencode.
+# Deprecated: use [resume].command plus [resume].args for commands with flags.
 # 按 Enter 恢复会话时使用的 OpenCode 命令或路径。默认值：opencode。
+# 已弃用：带参数命令请使用 [resume].command 和 [resume].args。
 opencode = "opencode"
 # Database write protection. Default: false.
 # 数据库写保护。默认值：false。使用 --read-only 或设为 true 可禁止修改标题。
@@ -38,6 +41,17 @@ theme_name = ""
 # Optional external theme file. Relative paths are resolved from this config file.
 # 可选的外部主题文件。相对路径将基于当前配置文件解析。
 theme_file = ""
+
+[resume]
+# Executable used to resume a session. Do not include flags here.
+# 恢复会话使用的可执行文件。这里不要写参数。
+command = "opencode"
+# Fixed arguments inserted before the session arguments, for example ["--proxy"].
+# 追加在 session 参数前的固定参数，例如 ["--proxy"]。
+args = []
+# Arguments used to pass the selected session id. Must include {session_id}.
+# 传入选中 session id 的参数，必须包含 {session_id}。
+session_args = ["--session", "{session_id}"]
 
 [search]
 # User-message memory window in days. Use 0 to disable. Default: 7.
@@ -152,6 +166,7 @@ type rawConfig struct {
 	Language  string     `toml:"language"`
 	Limit     int        `toml:"limit"`
 	OpenCode  string     `toml:"opencode"`
+	Resume    rawResume  `toml:"resume"`
 	ReadOnly  *bool      `toml:"read_only"`
 	Search    rawSearch  `toml:"search"`
 	Preview   rawPreview `toml:"preview"`
@@ -178,6 +193,12 @@ type rawUI struct {
 	BorderStyle     string   `toml:"border_style"`
 	SplitRatio      *float64 `toml:"split_ratio"`
 	TwoPaneMinWidth *int     `toml:"two_pane_min_width"`
+}
+
+type rawResume struct {
+	Command     string   `toml:"command"`
+	Args        []string `toml:"args"`
+	SessionArgs []string `toml:"session_args"`
 }
 
 type rawTheme struct {
@@ -268,6 +289,7 @@ func ResolveOptions(cli Options, cliSet map[string]bool) (Options, error) {
 	}
 	if cliSet["opencode"] {
 		opts.OpenCodeCommand = cli.OpenCodeCommand
+		opts.Resume.Command = cli.OpenCodeCommand
 	}
 	if explicitConfig {
 		opts.ConfigPath = cli.ConfigPath
@@ -280,8 +302,13 @@ func ResolveOptions(cli Options, cliSet map[string]bool) (Options, error) {
 		opts.Language = "auto"
 	}
 	if opts.OpenCodeCommand == "" {
-		opts.OpenCodeCommand = "opencode"
+		opts.OpenCodeCommand = opts.Resume.Command
 	}
+	resumeCfg, err := resume.Normalize(opts.Resume)
+	if err != nil {
+		return Options{}, err
+	}
+	opts.Resume = resumeCfg
 	if opts.DetailFields == nil {
 		opts.DetailFields = DefaultDetailFields()
 	}
@@ -423,6 +450,7 @@ func DefaultOptions() Options {
 		Limit:           500,
 		Language:        "auto",
 		OpenCodeCommand: "opencode",
+		Resume:          resume.DefaultConfig(),
 		DetailFields:    DefaultDetailFields(),
 		ReadOnly:        false,
 		RecentDays:      7,
@@ -526,6 +554,17 @@ func mergeConfig(opts *Options, cfg rawConfig) {
 	}
 	if cfg.OpenCode != "" {
 		opts.OpenCodeCommand = cfg.OpenCode
+		opts.Resume.Command = cfg.OpenCode
+	}
+	if cfg.Resume.Command != "" {
+		opts.Resume.Command = cfg.Resume.Command
+		opts.OpenCodeCommand = cfg.Resume.Command
+	}
+	if cfg.Resume.Args != nil {
+		opts.Resume.Args = append([]string(nil), cfg.Resume.Args...)
+	}
+	if cfg.Resume.SessionArgs != nil {
+		opts.Resume.SessionArgs = append([]string(nil), cfg.Resume.SessionArgs...)
 	}
 	if cfg.ReadOnly != nil {
 		opts.ReadOnly = *cfg.ReadOnly

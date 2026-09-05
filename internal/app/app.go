@@ -11,6 +11,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/asikeida/lazyOpencodeSession/internal/opencode"
+	"github.com/asikeida/lazyOpencodeSession/internal/resume"
 	lazytui "github.com/asikeida/lazyOpencodeSession/internal/tui"
 )
 
@@ -20,6 +21,7 @@ type Options struct {
 	Limit           int
 	Language        string
 	OpenCodeCommand string
+	Resume          resume.Config
 	DetailFields    map[string]bool
 	ReadOnly        bool
 	RecentDays      int
@@ -32,8 +34,15 @@ func Run(ctx context.Context, opts Options) error {
 	if opts.Limit <= 0 {
 		opts.Limit = 500
 	}
-	if opts.OpenCodeCommand == "" {
-		opts.OpenCodeCommand = "opencode"
+	if opts.Resume.Command == "" {
+		opts.Resume.Command = opts.OpenCodeCommand
+	}
+	if opts.Resume.Command == "" {
+		opts.Resume.Command = "opencode"
+	}
+	resumeCfg, err := resume.Normalize(opts.Resume)
+	if err != nil {
+		return err
 	}
 
 	dbPath, err := resolveDBPath(opts.DBPath)
@@ -48,16 +57,16 @@ func Run(ctx context.Context, opts Options) error {
 	defer repo.Close()
 
 	model := lazytui.New(lazytui.Options{
-		Repo:            repo,
-		Limit:           opts.Limit,
-		Language:        opts.Language,
-		OpenCodeCommand: opts.OpenCodeCommand,
-		DetailFields:    opts.DetailFields,
-		ReadOnly:        opts.ReadOnly,
-		RecentDays:      opts.RecentDays,
-		PreviewLimit:    opts.PreviewLimit,
-		Theme:           opts.Theme,
-		UI:              opts.UI,
+		Repo:         repo,
+		Limit:        opts.Limit,
+		Language:     opts.Language,
+		Resume:       resumeCfg,
+		DetailFields: opts.DetailFields,
+		ReadOnly:     opts.ReadOnly,
+		RecentDays:   opts.RecentDays,
+		PreviewLimit: opts.PreviewLimit,
+		Theme:        opts.Theme,
+		UI:           opts.UI,
 	})
 
 	program := tea.NewProgram(model, tea.WithAltScreen())
@@ -71,7 +80,8 @@ func Run(ctx context.Context, opts Options) error {
 		return nil
 	}
 
-	cmd := exec.CommandContext(ctx, opts.OpenCodeCommand, "--session", m.ResumeSessionID())
+	command, args := resumeCfg.CommandArgs(m.ResumeSessionID())
+	cmd := exec.CommandContext(ctx, command, args...)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr

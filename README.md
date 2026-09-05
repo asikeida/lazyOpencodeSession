@@ -20,7 +20,7 @@
 - Delete a session tree only after impact analysis, confirmation, and transactional scope revalidation.
 - Use real SQLite read-only mode with `--read-only`.
 - Switch between responsive one-pane and two-pane layouts.
-- Configure language, fields, preview depth, borders, layout, and themes.
+- Configure language, fields, preview depth, resume command arguments, borders, layout, and themes.
 - Copy session IDs through Wayland/X11 tools on Linux, `pbcopy` on macOS, or `clip.exe` on Windows.
 - Run as a single native binary without CGO.
 
@@ -135,6 +135,7 @@ lazyocs --check --limit 5
 lazyocs --read-only
 lazyocs --language zh-CN
 lazyocs --db ~/.local/share/opencode/opencode.db
+lazyocs --opencode /path/to/opencode
 lazyocs --config ~/lazyocs.toml
 lazyocs --print-config
 lazyocs --version
@@ -152,6 +153,11 @@ opencode = "opencode"
 read_only = false
 theme_name = "lazygit-classic"
 theme_file = ""
+
+[resume]
+command = "opencode"
+args = []
+session_args = ["--session", "{session_id}"]
 
 [search]
 recent_days = 7
@@ -184,6 +190,17 @@ resume_command = false
 ```
 
 Run `lazyocs --print-config` for the fully commented bilingual configuration.
+
+If you normally run OpenCode through its proxy mode, configure resume arguments without using a shell command string:
+
+```toml
+[resume]
+command = "opencode"
+args = ["--proxy"]
+session_args = ["--session", "{session_id}"]
+```
+
+This runs `opencode --proxy --session SESSION_ID`. Do not set `opencode = "opencode --proxy"`; `command` is the executable, and `args` is the argument list.
 
 ## Key Bindings
 

@@ -240,13 +240,6 @@ func normalizeDetailFields(fields map[string]bool) map[string]bool {
 	return defaults
 }
 
-func defaultString(value string, fallback string) string {
-	if value == "" {
-		return fallback
-	}
-	return value
-}
-
 func (m Model) visibleItems() int {
 	reserved := 5
 	if m.query != "" || m.mode == ModeSearch {

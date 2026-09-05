@@ -21,7 +21,7 @@ func main() {
 	flag.StringVar(&cli.DBPath, "db", "", "path to OpenCode SQLite database")
 	flag.IntVar(&cli.Limit, "limit", 500, "maximum sessions to load")
 	flag.StringVar(&cli.Language, "language", "auto", "language: auto, en, or zh-CN")
-	flag.StringVar(&cli.OpenCodeCommand, "opencode", "opencode", "opencode command path")
+	flag.StringVar(&cli.OpenCodeCommand, "opencode", "opencode", "resume command executable")
 	flag.Parse()
 
 	if *showVersion {

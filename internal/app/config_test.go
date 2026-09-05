@@ -3,9 +3,11 @@ package app
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
+	"github.com/asikeida/lazyOpencodeSession/internal/resume"
 	lazytui "github.com/asikeida/lazyOpencodeSession/internal/tui"
 )
 
@@ -40,6 +42,11 @@ opencode = "custom-opencode"
 theme_name = "moss"
 theme_file = "theme.toml"
 
+[resume]
+command = "opencode"
+args = ["--proxy"]
+session_args = ["--session", "{session_id}"]
+
 [search]
 recent_days = 14
 
@@ -73,11 +80,14 @@ tokens = false
 		t.Fatal(err)
 	}
 
-	if opts.DBPath != "/tmp/opencode.db" || opts.Language != "zh-CN" || opts.Limit != 123 || opts.OpenCodeCommand != "custom-opencode" {
+	if opts.DBPath != "/tmp/opencode.db" || opts.Language != "zh-CN" || opts.Limit != 123 || opts.OpenCodeCommand != "opencode" {
 		t.Fatalf("unexpected options: %+v", opts)
 	}
 	if opts.RecentDays != 14 {
 		t.Fatalf("recent days = %d, want 14", opts.RecentDays)
+	}
+	if opts.Resume.Command != "opencode" || !reflect.DeepEqual(opts.Resume.Args, []string{"--proxy"}) {
+		t.Fatalf("unexpected resume config: %+v", opts.Resume)
 	}
 	if opts.PreviewLimit != 9 {
 		t.Fatalf("preview limit = %d, want 9", opts.PreviewLimit)
@@ -220,6 +230,37 @@ opencode = "custom-opencode"
 	if opts.Language != "en" || opts.Limit != 42 || opts.OpenCodeCommand != "opencode-next" {
 		t.Fatalf("CLI did not override config: %+v", opts)
 	}
+	if opts.Resume.Command != "opencode-next" {
+		t.Fatalf("CLI did not override resume command: %+v", opts.Resume)
+	}
+}
+
+func TestResolveOptionsKeepsLegacyOpenCodeFallback(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "config.toml")
+	if err := os.WriteFile(configPath, []byte(`opencode = "opencode-beta"
+`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	opts, err := ResolveOptions(Options{ConfigPath: configPath}, map[string]bool{"config": true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if opts.Resume.Command != "opencode-beta" {
+		t.Fatalf("resume command = %q", opts.Resume.Command)
+	}
+}
+
+func TestResolveOptionsRejectsInvalidResumeConfig(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "config.toml")
+	if err := os.WriteFile(configPath, []byte(`[resume]
+session_args = ["--session"]
+`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	_, err := ResolveOptions(Options{ConfigPath: configPath}, map[string]bool{"config": true})
+	if err == nil || !strings.Contains(err.Error(), resume.SessionPlaceholder) {
+		t.Fatalf("unexpected error: %v", err)
+	}
 }
 
 func TestResolveOptionsCreatesMissingDefaultConfig(t *testing.T) {
@@ -273,6 +314,9 @@ func TestResolveOptionsDefaultsToReadWrite(t *testing.T) {
 	}
 	if opts.UI != lazytui.DefaultUIConfig() {
 		t.Fatalf("unexpected ui defaults: %+v", opts.UI)
+	}
+	if opts.Resume.Command != "opencode" {
+		t.Fatalf("unexpected resume default: %+v", opts.Resume)
 	}
 }
 

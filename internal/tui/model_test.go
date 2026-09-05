@@ -14,6 +14,7 @@ import (
 	"github.com/charmbracelet/x/cellbuf"
 
 	"github.com/asikeida/lazyOpencodeSession/internal/opencode"
+	"github.com/asikeida/lazyOpencodeSession/internal/resume"
 )
 
 type previewLimitRepo struct {
@@ -708,6 +709,22 @@ func TestRenderDetailsShowsScrollHintAndProgress(t *testing.T) {
 	}
 	if !strings.Contains(view, "/") {
 		t.Fatalf("details view missing progress: %q", view)
+	}
+}
+
+func TestRenderDetailsShowsConfiguredResumeCommand(t *testing.T) {
+	model := Model{
+		width:    100,
+		height:   20,
+		styles:   NewStyles(),
+		texts:    NewTexts("en"),
+		resume:   resume.Config{Command: "opencode", Args: []string{"--proxy"}, SessionArgs: []string{"--session", resume.SessionPlaceholder}},
+		sessions: []opencode.Session{{ID: "ses_example", Title: "Example", Directory: "/tmp"}},
+		fields:   normalizeDetailFields(map[string]bool{"resume_command": true}),
+	}
+	view := ansi.Strip(model.renderDetails(80, 19))
+	if !strings.Contains(view, "opencode --proxy --session ses_example") {
+		t.Fatalf("details view missing configured resume command: %q", view)
 	}
 }
 

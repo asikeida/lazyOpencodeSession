@@ -6,19 +6,20 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/asikeida/lazyOpencodeSession/internal/opencode"
+	"github.com/asikeida/lazyOpencodeSession/internal/resume"
 )
 
 type Options struct {
-	Repo            opencode.Repository
-	Limit           int
-	Language        string
-	OpenCodeCommand string
-	DetailFields    map[string]bool
-	ReadOnly        bool
-	RecentDays      int
-	PreviewLimit    int
-	Theme           ThemeConfig
-	UI              UIConfig
+	Repo         opencode.Repository
+	Limit        int
+	Language     string
+	Resume       resume.Config
+	DetailFields map[string]bool
+	ReadOnly     bool
+	RecentDays   int
+	PreviewLimit int
+	Theme        ThemeConfig
+	UI           UIConfig
 }
 
 type Mode int
@@ -40,7 +41,7 @@ const searchDebounceDelay = 100 * time.Millisecond
 type Model struct {
 	repo          opencode.Repository
 	limit         int
-	opencode      string
+	resume        resume.Config
 	readOnly      bool
 	fields        map[string]bool
 	styles        Styles
@@ -175,10 +176,14 @@ func New(opts Options) Model {
 	if err != nil {
 		styles = NewStyles()
 	}
+	resumeCfg, err := resume.Normalize(opts.Resume)
+	if err != nil {
+		resumeCfg = resume.DefaultConfig()
+	}
 	return Model{
 		repo:          opts.Repo,
 		limit:         opts.Limit,
-		opencode:      defaultString(opts.OpenCodeCommand, "opencode"),
+		resume:        resumeCfg,
 		readOnly:      opts.ReadOnly,
 		fields:        normalizeDetailFields(opts.DetailFields),
 		stats:         map[string]opencode.SessionStats{},

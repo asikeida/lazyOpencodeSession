@@ -157,7 +157,7 @@ func (m Model) detailLines(contentWidth int) []string {
 	m.appendDetailField(&lines, "agent", m.texts.FieldAgent, emptyDash(s.Agent), contentWidth)
 	m.appendDetailField(&lines, "cost", m.texts.FieldCost, fmt.Sprintf("$%.4f", s.Cost), contentWidth)
 	m.appendDetailField(&lines, "tokens", m.texts.FieldTokens, fmt.Sprintf(m.texts.TokensFormat, s.TokensInput, s.TokensOutput, s.TokensReasoning, s.TokensCacheRead), contentWidth)
-	m.appendDetailField(&lines, "resume_command", m.texts.FieldResumeCommand, m.opencode+" --session "+s.ID, contentWidth)
+	m.appendDetailField(&lines, "resume_command", m.texts.FieldResumeCommand, m.resume.CommandLine(s.ID), contentWidth)
 	lines = append(lines, "", m.styles.DetailsHint.Render(m.texts.ActionHint))
 	if m.previewFor == s.ID {
 		lines = append(lines, "", m.styles.Accent.Render(m.texts.RecentUserMessages))

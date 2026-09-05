@@ -20,7 +20,7 @@
 - 删除前分析完整影响范围、二次确认，并在事务中重新校验范围。
 - 使用 `--read-only` 从 SQLite 数据源层进入真正的只读模式。
 - 根据终端宽度自动切换单栏和双栏布局。
-- 配置语言、详情字段、预览深度、边框、布局和主题。
+- 配置语言、详情字段、预览深度、恢复命令参数、边框、布局和主题。
 - Linux 支持 Wayland/X11 剪贴板工具，macOS 支持 `pbcopy`，Windows 支持系统 `clip.exe`。
 - 单个原生二进制运行，不依赖 CGO。
 
@@ -135,6 +135,7 @@ lazyocs --check --limit 5
 lazyocs --read-only
 lazyocs --language zh-CN
 lazyocs --db ~/.local/share/opencode/opencode.db
+lazyocs --opencode /path/to/opencode
 lazyocs --config ~/lazyocs.toml
 lazyocs --print-config
 lazyocs --version
@@ -152,6 +153,11 @@ opencode = "opencode"
 read_only = false
 theme_name = "lazygit-classic"
 theme_file = ""
+
+[resume]
+command = "opencode"
+args = []
+session_args = ["--session", "{session_id}"]
 
 [search]
 recent_days = 7
@@ -184,6 +190,17 @@ resume_command = false
 ```
 
 执行 `lazyocs --print-config` 可查看带有完整中英文注释的配置。
+
+如果你平时使用 OpenCode 时需要代理模式，不要写成一个 shell 命令字符串，而是这样配置：
+
+```toml
+[resume]
+command = "opencode"
+args = ["--proxy"]
+session_args = ["--session", "{session_id}"]
+```
+
+实际执行效果是 `opencode --proxy --session SESSION_ID`。不要设置 `opencode = "opencode --proxy"`；`command` 只放可执行文件，`args` 放参数列表。
 
 ## 快捷键
 
