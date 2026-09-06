@@ -191,16 +191,19 @@ resume_command = false
 
 执行 `lazyocs --print-config` 可查看带有完整中英文注释的配置。
 
-如果你平时使用 OpenCode 时需要代理模式，不要写成一个 shell 命令字符串，而是这样配置：
+如果恢复 OpenCode 时需要代理环境变量，不要写成一个 shell 命令字符串，而是这样配置：
 
 ```toml
 [resume]
 command = "opencode"
-args = ["--proxy"]
+args = []
 session_args = ["--session", "{session_id}"]
+
+[resume.env]
+ALL_PROXY = "http://127.0.0.1:7897"
 ```
 
-实际执行效果是 `opencode --proxy --session SESSION_ID`。不要设置 `opencode = "opencode --proxy"`；`command` 只放可执行文件，`args` 放参数列表。
+实际执行效果是带着 `ALL_PROXY` 环境变量运行 `opencode --session SESSION_ID`。不要设置 `opencode = "opencode --proxy"`；`command` 只放可执行文件，`args` 放参数列表，`[resume.env]` 放环境变量。
 
 ## 快捷键
 

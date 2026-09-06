@@ -34,7 +34,7 @@ $XDG_CONFIG_HOME/lazyocs/config.toml
 
 程序使用 `flag.Visit` 区分“参数具有默认值”和“用户真的输入了这个参数”。例如 `--limit` 默认是 500，如果用户没有输入它，就不能让 CLI 默认值错误覆盖配置文件中的 1000。
 
-恢复会话命令使用 `[resume]` 模块表达：`command` 是可执行文件，`args` 是固定参数，`session_args` 负责注入 `{session_id}`。这避免把 `opencode --proxy` 当作单个可执行文件，也避免通过 shell 解析用户配置。
+恢复会话命令使用 `[resume]` 模块表达：`command` 是可执行文件，`args` 是固定参数，`session_args` 负责注入 `{session_id}`，`[resume.env]` 负责传入代理等环境变量。这避免把带参数命令当作单个可执行文件，也避免通过 shell 解析用户配置。
 
 对应文件：
 

@@ -20,14 +20,43 @@ func TestDefaultCommandArgs(t *testing.T) {
 	}
 }
 
-func TestProxyCommandArgs(t *testing.T) {
-	cfg, err := Normalize(Config{Command: "opencode", Args: []string{"--proxy"}})
+func TestFixedCommandArgs(t *testing.T) {
+	cfg, err := Normalize(Config{Command: "opencode", Args: []string{"--pure"}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, args := cfg.CommandArgs("ses_proxy")
-	if want := []string{"--proxy", "--session", "ses_proxy"}; !reflect.DeepEqual(args, want) {
+	_, args := cfg.CommandArgs("ses_fixed")
+	if want := []string{"--pure", "--session", "ses_fixed"}; !reflect.DeepEqual(args, want) {
 		t.Fatalf("args = %#v, want %#v", args, want)
+	}
+}
+
+func TestCommandEnvAppendsConfiguredVariables(t *testing.T) {
+	cfg, err := Normalize(Config{Command: "opencode", Env: map[string]string{"ALL_PROXY": "http://127.0.0.1:7897"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	env := cfg.CommandEnv([]string{"PATH=/usr/bin"})
+	if want := []string{"PATH=/usr/bin", "ALL_PROXY=http://127.0.0.1:7897"}; !reflect.DeepEqual(env, want) {
+		t.Fatalf("env = %#v, want %#v", env, want)
+	}
+}
+
+func TestCommandEnvOverridesConfiguredVariables(t *testing.T) {
+	cfg, err := Normalize(Config{Command: "opencode", Env: map[string]string{"ALL_PROXY": "http://127.0.0.1:7897"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	env := cfg.CommandEnv([]string{"PATH=/usr/bin", "ALL_PROXY=http://old"})
+	if want := []string{"PATH=/usr/bin", "ALL_PROXY=http://127.0.0.1:7897"}; !reflect.DeepEqual(env, want) {
+		t.Fatalf("env = %#v, want %#v", env, want)
+	}
+}
+
+func TestNormalizeRejectsInvalidEnvKey(t *testing.T) {
+	_, err := Normalize(Config{Command: "opencode", Env: map[string]string{"BAD=KEY": "value"}})
+	if err == nil || !strings.Contains(err.Error(), "resume.env") {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
 

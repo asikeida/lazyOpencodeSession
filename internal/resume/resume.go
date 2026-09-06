@@ -12,6 +12,7 @@ type Config struct {
 	Command     string
 	Args        []string
 	SessionArgs []string
+	Env         map[string]string
 }
 
 func DefaultConfig() Config {
@@ -38,6 +39,11 @@ func Normalize(cfg Config) (Config, error) {
 	if !found {
 		return Config{}, fmt.Errorf("resume.session_args must include %s", SessionPlaceholder)
 	}
+	for key := range cfg.Env {
+		if strings.TrimSpace(key) == "" || strings.Contains(key, "=") {
+			return Config{}, fmt.Errorf("resume.env contains invalid key %q", key)
+		}
+	}
 	return cfg, nil
 }
 
@@ -47,6 +53,28 @@ func (cfg Config) CommandArgs(sessionID string) (string, []string) {
 		args = append(args, strings.ReplaceAll(arg, SessionPlaceholder, sessionID))
 	}
 	return cfg.Command, args
+}
+
+func (cfg Config) CommandEnv(base []string) []string {
+	if len(cfg.Env) == 0 {
+		return base
+	}
+	env := append([]string{}, base...)
+	indexes := map[string]int{}
+	for i, item := range env {
+		if key, _, ok := strings.Cut(item, "="); ok {
+			indexes[key] = i
+		}
+	}
+	for key, value := range cfg.Env {
+		item := key + "=" + value
+		if index, ok := indexes[key]; ok {
+			env[index] = item
+			continue
+		}
+		env = append(env, item)
+	}
+	return env
 }
 
 func (cfg Config) CommandLine(sessionID string) string {

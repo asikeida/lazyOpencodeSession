@@ -44,8 +44,11 @@ theme_file = "theme.toml"
 
 [resume]
 command = "opencode"
-args = ["--proxy"]
+args = ["--pure"]
 session_args = ["--session", "{session_id}"]
+
+[resume.env]
+ALL_PROXY = "http://127.0.0.1:7897"
 
 [search]
 recent_days = 14
@@ -86,8 +89,11 @@ tokens = false
 	if opts.RecentDays != 14 {
 		t.Fatalf("recent days = %d, want 14", opts.RecentDays)
 	}
-	if opts.Resume.Command != "opencode" || !reflect.DeepEqual(opts.Resume.Args, []string{"--proxy"}) {
+	if opts.Resume.Command != "opencode" || !reflect.DeepEqual(opts.Resume.Args, []string{"--pure"}) {
 		t.Fatalf("unexpected resume config: %+v", opts.Resume)
+	}
+	if opts.Resume.Env["ALL_PROXY"] != "http://127.0.0.1:7897" {
+		t.Fatalf("unexpected resume env: %+v", opts.Resume.Env)
 	}
 	if opts.PreviewLimit != 9 {
 		t.Fatalf("preview limit = %d, want 9", opts.PreviewLimit)

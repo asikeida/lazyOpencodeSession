@@ -191,16 +191,19 @@ resume_command = false
 
 Run `lazyocs --print-config` for the fully commented bilingual configuration.
 
-If you normally run OpenCode through its proxy mode, configure resume arguments without using a shell command string:
+If OpenCode needs proxy environment variables, pass them to the resumed process without using a shell command string:
 
 ```toml
 [resume]
 command = "opencode"
-args = ["--proxy"]
+args = []
 session_args = ["--session", "{session_id}"]
+
+[resume.env]
+ALL_PROXY = "http://127.0.0.1:7897"
 ```
 
-This runs `opencode --proxy --session SESSION_ID`. Do not set `opencode = "opencode --proxy"`; `command` is the executable, and `args` is the argument list.
+This runs `opencode --session SESSION_ID` with `ALL_PROXY` set for the child process. Do not set `opencode = "opencode --proxy"`; `command` is the executable, `args` is the argument list, and `[resume.env]` is for environment variables.
 
 ## Key Bindings
 

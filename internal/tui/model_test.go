@@ -718,12 +718,12 @@ func TestRenderDetailsShowsConfiguredResumeCommand(t *testing.T) {
 		height:   20,
 		styles:   NewStyles(),
 		texts:    NewTexts("en"),
-		resume:   resume.Config{Command: "opencode", Args: []string{"--proxy"}, SessionArgs: []string{"--session", resume.SessionPlaceholder}},
+		resume:   resume.Config{Command: "opencode", Args: []string{"--pure"}, SessionArgs: []string{"--session", resume.SessionPlaceholder}},
 		sessions: []opencode.Session{{ID: "ses_example", Title: "Example", Directory: "/tmp"}},
 		fields:   normalizeDetailFields(map[string]bool{"resume_command": true}),
 	}
 	view := ansi.Strip(model.renderDetails(80, 19))
-	if !strings.Contains(view, "opencode --proxy --session ses_example") {
+	if !strings.Contains(view, "opencode --pure --session ses_example") {
 		t.Fatalf("details view missing configured resume command: %q", view)
 	}
 }

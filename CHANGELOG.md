@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-09-06
+
+### Added
+
+- `[resume.env]` support for passing proxy and other environment variables to resumed OpenCode sessions.
+
+### Changed
+
+- Document proxy configuration as environment variables instead of the unsupported `opencode --proxy` CLI flag.
+
 ## [0.1.1] - 2026-09-05
 
 ### Added
@@ -32,6 +42,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Write operations fail closed when required schema capabilities or delete cascades are absent.
 - Title input strips control characters and deletion requires explicit confirmation.
 
-[Unreleased]: https://github.com/asikeida/lazyOpencodeSession/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/asikeida/lazyOpencodeSession/compare/v0.1.2...HEAD
+[0.1.2]: https://github.com/asikeida/lazyOpencodeSession/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/asikeida/lazyOpencodeSession/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/asikeida/lazyOpencodeSession/releases/tag/v0.1.0

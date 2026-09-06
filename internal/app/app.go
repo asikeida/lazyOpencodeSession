@@ -85,6 +85,7 @@ func Run(ctx context.Context, opts Options) error {
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
+	cmd.Env = resumeCfg.CommandEnv(os.Environ())
 	return cmd.Run()
 }
 

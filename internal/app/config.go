@@ -46,12 +46,17 @@ theme_file = ""
 # Executable used to resume a session. Do not include flags here.
 # 恢复会话使用的可执行文件。这里不要写参数。
 command = "opencode"
-# Fixed arguments inserted before the session arguments, for example ["--proxy"].
-# 追加在 session 参数前的固定参数，例如 ["--proxy"]。
+# Fixed arguments inserted before the session arguments.
+# 追加在 session 参数前的固定参数。
 args = []
 # Arguments used to pass the selected session id. Must include {session_id}.
 # 传入选中 session id 的参数，必须包含 {session_id}。
 session_args = ["--session", "{session_id}"]
+
+# Optional environment variables passed to the resumed OpenCode process.
+# 可选：传给恢复后的 OpenCode 进程的环境变量。
+# [resume.env]
+# ALL_PROXY = "http://127.0.0.1:7897"
 
 [search]
 # User-message memory window in days. Use 0 to disable. Default: 7.
@@ -196,9 +201,10 @@ type rawUI struct {
 }
 
 type rawResume struct {
-	Command     string   `toml:"command"`
-	Args        []string `toml:"args"`
-	SessionArgs []string `toml:"session_args"`
+	Command     string            `toml:"command"`
+	Args        []string          `toml:"args"`
+	SessionArgs []string          `toml:"session_args"`
+	Env         map[string]string `toml:"env"`
 }
 
 type rawTheme struct {
@@ -565,6 +571,12 @@ func mergeConfig(opts *Options, cfg rawConfig) {
 	}
 	if cfg.Resume.SessionArgs != nil {
 		opts.Resume.SessionArgs = append([]string(nil), cfg.Resume.SessionArgs...)
+	}
+	if cfg.Resume.Env != nil {
+		opts.Resume.Env = map[string]string{}
+		for key, value := range cfg.Resume.Env {
+			opts.Resume.Env[key] = value
+		}
 	}
 	if cfg.ReadOnly != nil {
 		opts.ReadOnly = *cfg.ReadOnly
