@@ -579,6 +579,34 @@ func TestSearchDStillTypesQuery(t *testing.T) {
 	}
 }
 
+func TestSearchCtrlHLTogglePanelFocus(t *testing.T) {
+	model := Model{mode: ModeSearch, width: 120, query: "op", focus: FocusSessions}
+	updated, _ := model.handleKey(tea.KeyMsg{Type: tea.KeyCtrlL})
+	got := updated.(Model)
+	if got.focus != FocusDetails || got.query != "op" {
+		t.Fatalf("ctrl+l focus=%v query=%q, want details and unchanged query", got.focus, got.query)
+	}
+	updated, _ = got.handleKey(tea.KeyMsg{Type: tea.KeyCtrlH})
+	got = updated.(Model)
+	if got.focus != FocusSessions || got.query != "op" {
+		t.Fatalf("ctrl+h focus=%v query=%q, want sessions and unchanged query", got.focus, got.query)
+	}
+}
+
+func TestSearchHLStillTypesQuery(t *testing.T) {
+	model := Model{mode: ModeSearch, width: 120, query: "op", focus: FocusSessions}
+	updated, cmd := model.handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'h'}})
+	got := updated.(Model)
+	if cmd == nil || got.focus != FocusSessions || got.query != "oph" {
+		t.Fatalf("h should type in search mode: focus=%v query=%q cmd=%v", got.focus, got.query, cmd != nil)
+	}
+	updated, cmd = got.handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'l'}})
+	got = updated.(Model)
+	if cmd == nil || got.focus != FocusSessions || got.query != "ophl" {
+		t.Fatalf("l should type in search mode: focus=%v query=%q cmd=%v", got.focus, got.query, cmd != nil)
+	}
+}
+
 func TestSearchEscapeClearsImmediatelyAndInvalidatesDebounce(t *testing.T) {
 	model := Model{
 		mode:          ModeSearch,
@@ -597,11 +625,12 @@ func TestSearchEscapeClearsImmediatelyAndInvalidatesDebounce(t *testing.T) {
 }
 
 func TestApplySearchCombinesMetadataAndUserMemory(t *testing.T) {
+	now := time.Now()
 	model := Model{
 		query: "windows checksum",
 		catalog: []opencode.Session{
-			{ID: "ses_match", Title: "Windows reinstall"},
-			{ID: "ses_other", Title: "Linux reinstall"},
+			{ID: "ses_match", Title: "Windows reinstall", UpdatedAt: now},
+			{ID: "ses_other", Title: "Linux reinstall", UpdatedAt: now},
 		},
 		memories: map[string][]opencode.UserMemory{
 			"ses_match": {{SessionID: "ses_match", Text: "Please verify the ISO checksum"}},
@@ -616,8 +645,49 @@ func TestApplySearchCombinesMetadataAndUserMemory(t *testing.T) {
 	if len(model.sessions) != 1 || model.sessions[0].ID != "ses_match" {
 		t.Fatalf("unexpected memory search results: %#v", model.sessions)
 	}
-	if !strings.Contains(model.memoryMatches["ses_match"], "ISO checksum") {
+	if len(model.memoryMatches["ses_match"]) == 0 || !strings.Contains(model.memoryMatches["ses_match"][0].Text, "ISO checksum") {
 		t.Fatalf("missing memory match snippet: %q", model.memoryMatches["ses_match"])
+	}
+}
+
+func TestApplySearchRanksTitleThenMemoryThenPath(t *testing.T) {
+	now := time.Now()
+	model := Model{
+		query: "opencode",
+		catalog: []opencode.Session{
+			{ID: "ses_path", Title: "Config notes", Directory: "/home/user/.config/opencode", UpdatedAt: now},
+			{ID: "ses_memory", Title: "Proxy notes", Directory: "/home/user", UpdatedAt: now.Add(-time.Hour)},
+			{ID: "ses_title", Title: "OpenCode desktop", Directory: "/home/user", UpdatedAt: now.Add(-2 * time.Hour)},
+		},
+		memories: map[string][]opencode.UserMemory{
+			"ses_memory": {{SessionID: "ses_memory", Text: "I usually run opencode with proxy", CreatedAt: now}},
+		},
+		memorySearch: map[string]string{
+			"ses_memory": "i usually run opencode with proxy",
+		},
+	}
+	model.applySearch()
+	got := []string{}
+	for _, session := range model.sessions {
+		got = append(got, session.ID)
+	}
+	want := []string{"ses_title", "ses_memory", "ses_path"}
+	if strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Fatalf("ranked sessions = %#v, want %#v", got, want)
+	}
+	if strings.Join(model.searchSources["ses_title"], ",") != "title" || strings.Join(model.searchSources["ses_memory"], ",") != "message" || strings.Join(model.searchSources["ses_path"], ",") != "path" {
+		t.Fatalf("unexpected sources: %#v", model.searchSources)
+	}
+}
+
+func TestApplySearchIgnoresLowValueFieldsByDefault(t *testing.T) {
+	model := Model{
+		query:   "gpt build ses",
+		catalog: []opencode.Session{{ID: "ses_example", ProjectID: "global", Title: "Notes", Directory: "/home/user", Model: "gpt-5.5", Agent: "build"}},
+	}
+	model.applySearch()
+	if len(model.sessions) != 0 {
+		t.Fatalf("low-value fields should not match default search: %#v", model.sessions)
 	}
 }
 
@@ -634,7 +704,7 @@ func TestApplySearchKeepsMetadataOnlyMatchCompact(t *testing.T) {
 	if len(model.sessions) != 1 {
 		t.Fatalf("metadata match was lost: %#v", model.sessions)
 	}
-	if model.memoryMatches["ses_match"] != "" {
+	if len(model.memoryMatches["ses_match"]) != 0 {
 		t.Fatalf("metadata-only match should not show a memory snippet: %q", model.memoryMatches["ses_match"])
 	}
 }
@@ -647,8 +717,8 @@ func TestRenderSessionsShowsMemoryWindowAndSnippet(t *testing.T) {
 		mode:       ModeSearch,
 		recentDays: 7,
 		sessions:   []opencode.Session{{ID: "ses_match", Title: "Migration notes"}},
-		memoryMatches: map[string]string{
-			"ses_match": "remember the cobalt migration",
+		memoryMatches: map[string][]memoryMatch{
+			"ses_match": {{Text: "remember the cobalt migration", CreatedAt: time.Date(2026, 9, 8, 12, 0, 0, 0, time.Local)}},
 		},
 		styles: NewStyles(),
 		texts:  NewTexts("en"),
@@ -657,6 +727,34 @@ func TestRenderSessionsShowsMemoryWindowAndSnippet(t *testing.T) {
 	for _, want := range []string{"[memory 7d]", "remember the cobalt migration"} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("search view does not contain %q: %q", want, view)
+		}
+	}
+}
+
+func TestRenderDetailsShowsMatchedUserMessages(t *testing.T) {
+	model := Model{
+		width:    100,
+		height:   30,
+		mode:     ModeSearch,
+		query:    "cobalt",
+		styles:   NewStyles(),
+		texts:    NewTexts("en"),
+		sessions: []opencode.Session{{ID: "ses_match", Title: "Migration notes"}},
+		fields:   normalizeDetailFields(nil),
+		searchSources: map[string][]string{
+			"ses_match": {"title", "message", "path"},
+		},
+		memoryMatches: map[string][]memoryMatch{
+			"ses_match": {
+				{Text: "remember the cobalt migration", CreatedAt: time.Date(2026, 9, 8, 12, 0, 0, 0, time.Local)},
+				{Text: "second cobalt note", CreatedAt: time.Date(2026, 9, 8, 11, 0, 0, 0, time.Local)},
+			},
+		},
+	}
+	view := ansi.Strip(model.renderDetails(80, 29))
+	for _, want := range []string{"Match Sources", "title / user message / path", "Matched User Messages", "remember the cobalt migration", "second cobalt note"} {
+		if !strings.Contains(view, want) {
+			t.Fatalf("details view does not contain %q: %q", want, view)
 		}
 	}
 }
@@ -716,6 +814,36 @@ func TestRightFocusUsesJKToScrollDetails(t *testing.T) {
 	got = updated.(Model)
 	if got.detailsOffset != 0 {
 		t.Fatalf("details offset = %d, want back to 0", got.detailsOffset)
+	}
+}
+
+func TestSearchRightFocusUsesJKToScrollDetails(t *testing.T) {
+	model := Model{
+		mode:         ModeSearch,
+		query:        "line",
+		width:        120,
+		height:       20,
+		focus:        FocusDetails,
+		previewFor:   "ses_example",
+		previewLimit: 20,
+		styles:       NewStyles(),
+		texts:        NewTexts("en"),
+		sessions:     []opencode.Session{{ID: "ses_example", Title: "Example", Directory: "/tmp"}},
+		fields:       normalizeDetailFields(nil),
+		preview:      make([]opencode.MessagePreview, 0, 20),
+	}
+	for i := 0; i < 20; i++ {
+		model.preview = append(model.preview, opencode.MessagePreview{ID: fmt.Sprintf("msg_%d", i), Text: fmt.Sprintf("line %d", i), CreatedAt: time.Now()})
+	}
+	updated, cmd := model.handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
+	got := updated.(Model)
+	if cmd != nil || got.query != "line" || got.detailsOffset <= 0 {
+		t.Fatalf("search j should scroll details: query=%q offset=%d cmd=%v", got.query, got.detailsOffset, cmd != nil)
+	}
+	updated, cmd = got.handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'k'}})
+	got = updated.(Model)
+	if cmd != nil || got.query != "line" || got.detailsOffset != 0 {
+		t.Fatalf("search k should scroll details back: query=%q offset=%d cmd=%v", got.query, got.detailsOffset, cmd != nil)
 	}
 }
 

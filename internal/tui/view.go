@@ -86,8 +86,8 @@ func (m Model) renderSessions(width int, height int) string {
 			lines = append(lines, style.Render(prefix)+highlightText(title, m.searchTerms(), style, matchStyle))
 			meta := fmt.Sprintf("  %s  %s", truncateWidth(s.Directory, width-18), formatShortTime(s.UpdatedAt))
 			lines = append(lines, highlightText(meta, m.searchTerms(), m.styles.Muted, m.styles.Match))
-			if snippet := m.memoryMatches[s.ID]; snippet != "" {
-				snippet = truncateWidth(snippet, max(1, width-8))
+			if matches := m.memoryMatches[s.ID]; len(matches) > 0 {
+				snippet := truncateWidth(matches[0].Text, max(1, width-8))
 				lines = append(lines, m.styles.MemorySnippet.Render("  │ ")+highlightText(snippet, m.searchTerms(), m.styles.MemorySnippet, m.styles.Match))
 			}
 		}
@@ -158,7 +158,20 @@ func (m Model) detailLines(contentWidth int) []string {
 	m.appendDetailField(&lines, "cost", m.texts.FieldCost, fmt.Sprintf("$%.4f", s.Cost), contentWidth)
 	m.appendDetailField(&lines, "tokens", m.texts.FieldTokens, fmt.Sprintf(m.texts.TokensFormat, s.TokensInput, s.TokensOutput, s.TokensReasoning, s.TokensCacheRead), contentWidth)
 	m.appendDetailField(&lines, "resume_command", m.texts.FieldResumeCommand, m.resume.CommandLine(s.ID), contentWidth)
+	if m.mode == ModeSearch && len(m.searchSources[s.ID]) > 0 {
+		lines = append(lines, renderField(m.texts.FieldSearchSources+":", m.localizedSearchSources(m.searchSources[s.ID]), contentWidth)...)
+	}
 	lines = append(lines, "", m.styles.DetailsHint.Render(m.texts.ActionHint))
+	if m.mode == ModeSearch && len(m.memoryMatches[s.ID]) > 0 {
+		lines = append(lines, "", m.styles.Accent.Render(m.texts.MatchedUserMessages))
+		terms := m.searchTerms()
+		for i, match := range m.memoryMatches[s.ID] {
+			lines = append(lines, m.styles.PreviewTimestamp.Render(fmt.Sprintf("%d. %s", i+1, formatShortTime(match.CreatedAt))))
+			for _, line := range wrapAll(match.Text, max(20, contentWidth-2)) {
+				lines = append(lines, "  "+highlightText(line, terms, m.styles.MemorySnippet, m.styles.Match))
+			}
+		}
+	}
 	if m.previewFor == s.ID {
 		lines = append(lines, "", m.styles.Accent.Render(m.texts.RecentUserMessages))
 		if len(m.preview) == 0 {
@@ -172,6 +185,21 @@ func (m Model) detailLines(contentWidth int) []string {
 		}
 	}
 	return lines
+}
+
+func (m Model) localizedSearchSources(sources []string) string {
+	labels := make([]string, 0, len(sources))
+	for _, source := range sources {
+		switch source {
+		case "title":
+			labels = append(labels, m.texts.SearchSourceTitle)
+		case "message":
+			labels = append(labels, m.texts.SearchSourceMessage)
+		case "path":
+			labels = append(labels, m.texts.SearchSourcePath)
+		}
+	}
+	return strings.Join(labels, " / ")
 }
 
 func (m Model) detailsProgress(total int, visible int, offset int) string {

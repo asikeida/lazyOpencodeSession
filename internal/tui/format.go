@@ -16,30 +16,91 @@ import (
 
 func (m *Model) applySearch() {
 	terms := opencode.SearchTerms(m.query)
-	m.memoryMatches = map[string]string{}
+	m.memoryMatches = map[string][]memoryMatch{}
+	m.searchSources = map[string][]string{}
 	if len(terms) == 0 {
 		m.sessions = append(m.sessions[:0], m.catalog...)
 		m.matched = len(m.sessions)
 		return
 	}
-	filtered := make([]opencode.Session, 0, len(m.catalog))
+	results := make([]searchResult, 0, len(m.catalog))
+	now := time.Now()
 	for _, session := range m.catalog {
-		metadata := strings.ToLower(strings.Join([]string{session.ID, session.ProjectID, session.Title, session.Directory, session.Model, session.Agent}, " "))
-		if !containsAllTermsAcross(metadata, m.memorySearch[session.ID], terms) {
+		title := strings.ToLower(session.Title)
+		directory := strings.ToLower(session.Directory)
+		memory := m.memorySearch[session.ID]
+		if !containsAllTermsAcross(title, directory, memory, terms) {
 			continue
 		}
-		filtered = append(filtered, session)
-		if !containsAllTerms(metadata, terms) {
-			m.memoryMatches[session.ID] = bestMemorySnippet(m.memories[session.ID], terms)
+		score, sources := scoreSessionSearch(session, title, directory, memory, terms, now)
+		if matches := bestMemoryMatches(m.memories[session.ID], terms, 3); len(matches) > 0 {
+			m.memoryMatches[session.ID] = matches
 		}
+		m.searchSources[session.ID] = sources
+		results = append(results, searchResult{Session: session, Score: score})
+	}
+	sort.SliceStable(results, func(i, j int) bool {
+		if results[i].Score != results[j].Score {
+			return results[i].Score > results[j].Score
+		}
+		return results[i].Session.UpdatedAt.After(results[j].Session.UpdatedAt)
+	})
+	filtered := make([]opencode.Session, 0, len(results))
+	for _, result := range results {
+		filtered = append(filtered, result.Session)
 	}
 	m.sessions = filtered
 	m.matched = len(filtered)
 }
 
-func containsAllTermsAcross(metadata string, memory string, terms []string) bool {
+func scoreSessionSearch(session opencode.Session, title string, directory string, memory string, terms []string, now time.Time) (int, []string) {
+	score := recencyBonus(session.UpdatedAt, now)
+	sources := []string{}
+	if fieldHasAnyTerm(title, terms) {
+		score += 120 + fieldAllTermsBonus(title, terms)
+		sources = append(sources, "title")
+	}
+	if fieldHasAnyTerm(memory, terms) {
+		score += 100 + fieldAllTermsBonus(memory, terms)
+		sources = append(sources, "message")
+	}
+	if fieldHasAnyTerm(directory, terms) {
+		score += 40 + fieldAllTermsBonus(directory, terms)
+		sources = append(sources, "path")
+	}
+	return score, sources
+}
+
+func recencyBonus(updated time.Time, now time.Time) int {
+	if updated.IsZero() || now.IsZero() || updated.After(now) {
+		return 0
+	}
+	age := now.Sub(updated)
+	if age >= 30*24*time.Hour {
+		return 0
+	}
+	return 15 - int(age/(2*24*time.Hour))
+}
+
+func fieldAllTermsBonus(value string, terms []string) int {
+	if containsAllTerms(value, terms) && len(terms) > 1 {
+		return 20
+	}
+	return 0
+}
+
+func fieldHasAnyTerm(value string, terms []string) bool {
 	for _, term := range terms {
-		if !strings.Contains(metadata, term) && !strings.Contains(memory, term) {
+		if strings.Contains(value, term) {
+			return true
+		}
+	}
+	return false
+}
+
+func containsAllTermsAcross(title string, directory string, memory string, terms []string) bool {
+	for _, term := range terms {
+		if !strings.Contains(title, term) && !strings.Contains(directory, term) && !strings.Contains(memory, term) {
 			return false
 		}
 	}
@@ -56,8 +117,18 @@ func containsAllTerms(value string, terms []string) bool {
 }
 
 func bestMemorySnippet(memories []opencode.UserMemory, terms []string) string {
-	best := ""
-	bestScore := 0
+	matches := bestMemoryMatches(memories, terms, 1)
+	if len(matches) == 0 {
+		return ""
+	}
+	return matches[0].Text
+}
+
+func bestMemoryMatches(memories []opencode.UserMemory, terms []string, limit int) []memoryMatch {
+	if limit <= 0 {
+		return nil
+	}
+	matches := make([]memoryMatch, 0, min(len(memories), limit))
 	for _, memory := range memories {
 		text := sanitizeSingleLine(memory.Text)
 		lower := strings.ToLower(text)
@@ -67,12 +138,20 @@ func bestMemorySnippet(memories []opencode.UserMemory, terms []string) string {
 				score++
 			}
 		}
-		if score > bestScore {
-			best = contextualSnippet(text, terms, 180)
-			bestScore = score
+		if score > 0 {
+			matches = append(matches, memoryMatch{Text: contextualSnippet(text, terms, 220), CreatedAt: memory.CreatedAt, Score: score})
 		}
 	}
-	return best
+	sort.SliceStable(matches, func(i, j int) bool {
+		if matches[i].Score != matches[j].Score {
+			return matches[i].Score > matches[j].Score
+		}
+		return matches[i].CreatedAt.After(matches[j].CreatedAt)
+	})
+	if len(matches) > limit {
+		matches = matches[:limit]
+	}
+	return matches
 }
 
 func sanitizeSingleLine(value string) string {

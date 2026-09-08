@@ -81,7 +81,8 @@ type Model struct {
 	catalog       []opencode.Session
 	memories      map[string][]opencode.UserMemory
 	memorySearch  map[string]string
-	memoryMatches map[string]string
+	memoryMatches map[string][]memoryMatch
+	searchSources map[string][]string
 	recentDays    int
 	memoryLoading bool
 	memoryErr     error
@@ -194,12 +195,24 @@ func New(opts Options) Model {
 		status:        NewTexts(opts.Language).LoadingSessions,
 		memories:      map[string][]opencode.UserMemory{},
 		memorySearch:  map[string]string{},
-		memoryMatches: map[string]string{},
+		memoryMatches: map[string][]memoryMatch{},
+		searchSources: map[string][]string{},
 		recentDays:    opts.RecentDays,
 		memoryLoading: opts.RecentDays > 0,
 		previewLimit:  max(1, opts.PreviewLimit),
 		ui:            opts.UI,
 	}
+}
+
+type memoryMatch struct {
+	Text      string
+	CreatedAt time.Time
+	Score     int
+}
+
+type searchResult struct {
+	Session opencode.Session
+	Score   int
 }
 
 func (m Model) Init() tea.Cmd {

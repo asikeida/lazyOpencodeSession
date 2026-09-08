@@ -90,6 +90,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		delete(m.memories, msg.sessionID)
 		delete(m.memorySearch, msg.sessionID)
 		delete(m.memoryMatches, msg.sessionID)
+		delete(m.searchSources, msg.sessionID)
 		m.deleteConfirm = false
 		m.deleteBusy = false
 		m.deleteImpact = opencode.DeleteImpact{}
@@ -293,6 +294,14 @@ func (m Model) handleKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		case "ctrl+c":
 			return m, tea.Quit
+		case "ctrl+h":
+			m.focus = FocusSessions
+			return m, nil
+		case "ctrl+l":
+			if m.hasDetailsPane() {
+				m.focus = FocusDetails
+			}
+			return m, nil
 		case "up", "ctrl+k":
 			if m.detailsFocused() {
 				m.scrollDetails(-1)
@@ -333,6 +342,16 @@ func (m Model) handleKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.moveDown(m.visibleItems())
 			m.detailsOffset = 0
 			return m, m.maybeLoadStats()
+		}
+		if m.detailsFocused() {
+			switch key.String() {
+			case "k":
+				m.scrollDetails(-1)
+				return m, nil
+			case "j":
+				m.scrollDetails(1)
+				return m, nil
+			}
 		}
 		switch key.Type {
 		case tea.KeyBackspace:
@@ -392,7 +411,8 @@ func (m Model) handleKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.memoryErr = nil
 			m.memories = map[string][]opencode.UserMemory{}
 			m.memorySearch = map[string]string{}
-			m.memoryMatches = map[string]string{}
+			m.memoryMatches = map[string][]memoryMatch{}
+			m.searchSources = map[string][]string{}
 			return m, tea.Batch(m.loadSessions(), m.loadUserMemory())
 		}
 		return m, m.loadSessions()
