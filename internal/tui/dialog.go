@@ -32,7 +32,7 @@ func (m Model) renderTitleDialog() string {
 	width := m.dialogWidth()
 	contentWidth := max(1, width-4)
 	inputWidth := max(1, contentWidth-3)
-	input := tailWidth(m.titleInput, max(1, inputWidth-1)) + m.styles.ModalKey.Render("▏")
+	input := m.renderTitleInput(max(1, inputWidth-1), true)
 	if m.titleBusy {
 		input = tailWidth(m.titleInput, max(1, inputWidth))
 	}
@@ -46,6 +46,38 @@ func (m Model) renderTitleDialog() string {
 		inputLine,
 		hint,
 	}, width)
+}
+
+func (m Model) renderTitleInput(width int, cursor bool) string {
+	runes := []rune(m.titleInput)
+	cursorPos := min(max(0, m.titleCursor), len(runes))
+	start := 0
+	if cursorPos > 0 {
+		for lipgloss.Width(string(runes[start:cursorPos])) > width && start < cursorPos {
+			start++
+		}
+	}
+	for start < len(runes) && lipgloss.Width(string(runes[start:cursorPos])+"▏") > width+1 {
+		start++
+	}
+	end := len(runes)
+	for end > cursorPos && lipgloss.Width(string(runes[start:end])) > width {
+		end--
+	}
+	prefix := ""
+	if start > 0 {
+		prefix = "…"
+	}
+	suffix := ""
+	if end < len(runes) {
+		suffix = "…"
+	}
+	before := prefix + string(runes[start:cursorPos])
+	after := string(runes[cursorPos:end]) + suffix
+	if !cursor {
+		return before + after
+	}
+	return before + m.styles.ModalKey.Render("▏") + after
 }
 
 func (m Model) renderDeleteDialog() string {

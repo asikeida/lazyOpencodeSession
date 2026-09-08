@@ -66,6 +66,7 @@ type Model struct {
 	titleEdit     bool
 	titleBusy     bool
 	titleInput    string
+	titleCursor   int
 	deleteConfirm bool
 	deleteBusy    bool
 	deleteImpact  opencode.DeleteImpact

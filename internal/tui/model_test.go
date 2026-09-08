@@ -130,10 +130,11 @@ func TestFormatFullTimeIncludesWeekday(t *testing.T) {
 
 func TestTitleDialogUsesLegendAndStableWidth(t *testing.T) {
 	model := Model{
-		width:      100,
-		styles:     NewStyles(),
-		texts:      NewTexts("en"),
-		titleInput: "untitled",
+		width:       100,
+		styles:      NewStyles(),
+		texts:       NewTexts("en"),
+		titleInput:  "untitled",
+		titleCursor: len([]rune("untitled")),
 	}
 	dialog := model.renderTitleDialog()
 	if !strings.Contains(ansi.Strip(dialog), "Save as") || !strings.Contains(ansi.Strip(dialog), "✎ untitled") {
@@ -415,10 +416,11 @@ func TestTitleErrorKeepsEditorOpen(t *testing.T) {
 
 func TestTitleEnterLocksEditorAndSanitizesInput(t *testing.T) {
 	model := Model{
-		titleEdit:  true,
-		titleInput: "  new\n\ttitle \x1b[31m ",
-		sessions:   []opencode.Session{{ID: "ses_example"}},
-		texts:      NewTexts("en"),
+		titleEdit:   true,
+		titleInput:  "  new\n\ttitle \x1b[31m ",
+		titleCursor: len([]rune("  new\n\ttitle \x1b[31m ")),
+		sessions:    []opencode.Session{{ID: "ses_example"}},
+		texts:       NewTexts("en"),
 	}
 	updated, cmd := model.handleKey(tea.KeyMsg{Type: tea.KeyEnter})
 	got := updated.(Model)
@@ -432,6 +434,62 @@ func TestTitleEnterLocksEditorAndSanitizesInput(t *testing.T) {
 	got = updated.(Model)
 	if secondCmd != nil || !got.titleBusy {
 		t.Fatal("busy title editor accepted a duplicate submit")
+	}
+}
+
+func TestTitleEditorCursorEditsInMiddle(t *testing.T) {
+	model := Model{
+		titleEdit:   true,
+		titleInput:  "hello world",
+		titleCursor: len([]rune("hello world")),
+	}
+	for range 5 {
+		updated, _ := model.handleKey(tea.KeyMsg{Type: tea.KeyLeft})
+		model = updated.(Model)
+	}
+	updated, _ := model.handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("big ")})
+	got := updated.(Model)
+	if got.titleInput != "hello big world" || got.titleCursor != len([]rune("hello big ")) {
+		t.Fatalf("middle insert input=%q cursor=%d", got.titleInput, got.titleCursor)
+	}
+	updated, _ = got.handleKey(tea.KeyMsg{Type: tea.KeyBackspace})
+	got = updated.(Model)
+	if got.titleInput != "hello bigworld" || got.titleCursor != len([]rune("hello big")) {
+		t.Fatalf("middle backspace input=%q cursor=%d", got.titleInput, got.titleCursor)
+	}
+}
+
+func TestTitleEditorHomeEndMoveCursor(t *testing.T) {
+	model := Model{titleEdit: true, titleInput: "world", titleCursor: len([]rune("world"))}
+	updated, _ := model.handleKey(tea.KeyMsg{Type: tea.KeyHome})
+	got := updated.(Model)
+	if got.titleCursor != 0 {
+		t.Fatalf("home cursor = %d, want 0", got.titleCursor)
+	}
+	updated, _ = got.handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("hello ")})
+	got = updated.(Model)
+	if got.titleInput != "hello world" {
+		t.Fatalf("home insert input = %q", got.titleInput)
+	}
+	updated, _ = got.handleKey(tea.KeyMsg{Type: tea.KeyEnd})
+	got = updated.(Model)
+	if got.titleCursor != len([]rune(got.titleInput)) {
+		t.Fatalf("end cursor = %d, want end", got.titleCursor)
+	}
+}
+
+func TestRenderTitleDialogShowsCursorInMiddle(t *testing.T) {
+	model := Model{
+		width:       80,
+		styles:      NewStyles(),
+		texts:       NewTexts("en"),
+		titleEdit:   true,
+		titleInput:  "hello world",
+		titleCursor: len([]rune("hello ")),
+	}
+	view := ansi.Strip(model.renderTitleDialog())
+	if !strings.Contains(view, "hello ▏world") {
+		t.Fatalf("title dialog did not render cursor in middle: %q", view)
 	}
 }
 

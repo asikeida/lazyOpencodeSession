@@ -70,6 +70,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.titleEdit = false
 		m.titleBusy = false
 		m.titleInput = ""
+		m.titleCursor = 0
 		m.status = m.texts.TitleSaved
 		return m, nil
 	case sessionDeletedMsg:
@@ -211,6 +212,7 @@ func (m Model) handleKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		case "esc":
 			m.titleEdit = false
 			m.titleInput = ""
+			m.titleCursor = 0
 			m.status = m.texts.TitleCancelled
 			return m, nil
 		case "enter":
@@ -222,21 +224,31 @@ func (m Model) handleKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 			id := m.currentID()
 			m.titleBusy = true
 			m.titleInput = title
+			m.titleCursor = len([]rune(title))
 			m.status = m.texts.SavingTitle
 			return m, m.saveTitle(id, title)
 		case "ctrl+c":
 			return m, tea.Quit
+		case "left":
+			m.moveTitleCursor(-1)
+			return m, nil
+		case "right":
+			m.moveTitleCursor(1)
+			return m, nil
+		case "home", "ctrl+a":
+			m.titleCursor = 0
+			return m, nil
+		case "end", "ctrl+e":
+			m.titleCursor = len([]rune(m.titleInput))
+			return m, nil
 		}
 		switch key.Type {
 		case tea.KeyBackspace:
-			if len([]rune(m.titleInput)) > 0 {
-				runes := []rune(m.titleInput)
-				m.titleInput = string(runes[:len(runes)-1])
-			}
+			m.deleteBeforeTitleCursor()
 		case tea.KeyRunes:
-			m.titleInput += sanitizeTitleFragment(string(key.Runes))
+			m.insertTitleText(sanitizeTitleFragment(string(key.Runes)))
 		case tea.KeySpace:
-			m.titleInput += " "
+			m.insertTitleText(" ")
 		}
 		return m, nil
 	}
@@ -399,6 +411,7 @@ func (m Model) handleKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		m.titleEdit = true
 		m.titleInput = m.sessions[m.selected].Title
+		m.titleCursor = len([]rune(m.titleInput))
 		m.status = m.texts.EditingTitle
 		return m, nil
 	case "d":
@@ -494,6 +507,38 @@ func (m Model) startDelete() (tea.Model, tea.Cmd) {
 	m.deleteErr = nil
 	m.status = m.texts.LoadingDeleteImpact
 	return m, m.loadDeleteImpact(id)
+}
+
+func (m *Model) moveTitleCursor(delta int) {
+	m.titleCursor = min(max(0, m.titleCursor+delta), len([]rune(m.titleInput)))
+}
+
+func (m *Model) insertTitleText(text string) {
+	if text == "" {
+		return
+	}
+	runes := []rune(m.titleInput)
+	m.titleCursor = min(max(0, m.titleCursor), len(runes))
+	insert := []rune(text)
+	out := make([]rune, 0, len(runes)+len(insert))
+	out = append(out, runes[:m.titleCursor]...)
+	out = append(out, insert...)
+	out = append(out, runes[m.titleCursor:]...)
+	m.titleInput = string(out)
+	m.titleCursor += len(insert)
+}
+
+func (m *Model) deleteBeforeTitleCursor() {
+	runes := []rune(m.titleInput)
+	m.titleCursor = min(max(0, m.titleCursor), len(runes))
+	if m.titleCursor == 0 {
+		return
+	}
+	out := make([]rune, 0, len(runes)-1)
+	out = append(out, runes[:m.titleCursor-1]...)
+	out = append(out, runes[m.titleCursor:]...)
+	m.titleInput = string(out)
+	m.titleCursor--
 }
 
 func (m Model) currentID() string {
