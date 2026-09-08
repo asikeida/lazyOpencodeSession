@@ -315,6 +315,8 @@ func (m Model) handleKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 				return m, m.loadPreview(id)
 			}
 			return m, nil
+		case "ctrl+d":
+			return m.startDelete()
 		case "pgup":
 			if m.detailsFocused() {
 				m.scrollDetails(-m.detailScrollStep())
@@ -381,21 +383,7 @@ func (m Model) handleKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.status = m.texts.EditingTitle
 		return m, nil
 	case "d":
-		if m.currentID() == "" {
-			return m, nil
-		}
-		if m.readOnly {
-			m.status = m.texts.TitleReadOnly
-			return m, nil
-		}
-		m.deleteConfirm = true
-		id := m.currentID()
-		m.deleteImpact = opencode.DeleteImpact{}
-		m.deleteFor = ""
-		m.deleteLoading = true
-		m.deleteErr = nil
-		m.status = m.texts.LoadingDeleteImpact
-		return m, m.loadDeleteImpact(id)
+		return m.startDelete()
 	case "r":
 		m.loading = true
 		m.status = m.texts.ReloadingSessions
@@ -468,6 +456,24 @@ func (m Model) handleKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	}
 	return m, nil
+}
+
+func (m Model) startDelete() (tea.Model, tea.Cmd) {
+	if m.currentID() == "" {
+		return m, nil
+	}
+	if m.readOnly {
+		m.status = m.texts.TitleReadOnly
+		return m, nil
+	}
+	m.deleteConfirm = true
+	id := m.currentID()
+	m.deleteImpact = opencode.DeleteImpact{}
+	m.deleteFor = ""
+	m.deleteLoading = true
+	m.deleteErr = nil
+	m.status = m.texts.LoadingDeleteImpact
+	return m, m.loadDeleteImpact(id)
 }
 
 func (m Model) currentID() string {

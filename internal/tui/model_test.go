@@ -550,6 +550,35 @@ func TestSearchEnterFlushesPendingQuery(t *testing.T) {
 	}
 }
 
+func TestSearchCtrlDStartsDeleteConfirmation(t *testing.T) {
+	model := Model{
+		mode:     ModeSearch,
+		query:    "ol",
+		sessions: []opencode.Session{{ID: "ses_example"}},
+		texts:    NewTexts("en"),
+	}
+	updated, cmd := model.handleKey(tea.KeyMsg{Type: tea.KeyCtrlD})
+	got := updated.(Model)
+	if cmd == nil || !got.deleteConfirm || !got.deleteLoading {
+		t.Fatalf("ctrl+d did not start delete confirmation: cmd=%v confirm=%v loading=%v", cmd != nil, got.deleteConfirm, got.deleteLoading)
+	}
+	if got.query != "ol" || got.mode != ModeSearch {
+		t.Fatalf("ctrl+d should keep search state: mode=%v query=%q", got.mode, got.query)
+	}
+	if got.status != got.texts.LoadingDeleteImpact {
+		t.Fatalf("status = %q, want %q", got.status, got.texts.LoadingDeleteImpact)
+	}
+}
+
+func TestSearchDStillTypesQuery(t *testing.T) {
+	model := Model{mode: ModeSearch, query: "ol", texts: NewTexts("en")}
+	updated, cmd := model.handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'d'}})
+	got := updated.(Model)
+	if cmd == nil || got.query != "old" || got.deleteConfirm {
+		t.Fatalf("d should type in search mode: query=%q delete=%v cmd=%v", got.query, got.deleteConfirm, cmd != nil)
+	}
+}
+
 func TestSearchEscapeClearsImmediatelyAndInvalidatesDebounce(t *testing.T) {
 	model := Model{
 		mode:          ModeSearch,
