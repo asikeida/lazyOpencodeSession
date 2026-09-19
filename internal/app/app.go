@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -45,7 +46,7 @@ func Run(ctx context.Context, opts Options) error {
 		return err
 	}
 
-	dbPath, err := resolveDBPath(opts.DBPath)
+	dbPath, err := resolveDBPath(ctx, opts.DBPath, resumeCfg.Command)
 	if err != nil {
 		return err
 	}
@@ -55,6 +56,7 @@ func Run(ctx context.Context, opts Options) error {
 		return err
 	}
 	defer repo.Close()
+	repo.SetAPICommand(resumeCfg.Command)
 
 	model := lazytui.New(lazytui.Options{
 		Repo:         repo,
@@ -93,7 +95,14 @@ func Check(ctx context.Context, opts Options) error {
 	if opts.Limit <= 0 {
 		opts.Limit = 5
 	}
-	dbPath, err := resolveDBPath(opts.DBPath)
+	command := opts.Resume.Command
+	if command == "" {
+		command = opts.OpenCodeCommand
+	}
+	if command == "" {
+		command = "opencode"
+	}
+	dbPath, err := resolveDBPath(ctx, opts.DBPath, command)
 	if err != nil {
 		return err
 	}
@@ -109,7 +118,7 @@ func Check(ctx context.Context, opts Options) error {
 	}
 	fmt.Printf("database: %s\n", dbPath)
 	compat := repo.Compatibility()
-	fmt.Printf("schema: browse=%t stats=%t preview=%t rename=%t delete=%t\n", compat.Browse, compat.Stats, compat.Preview, compat.Rename, compat.Delete)
+	fmt.Printf("schema: version=%s browse=%t stats=%t preview=%t rename=%t delete=%t\n", repo.SchemaVersion(), compat.Browse, compat.Stats, compat.Preview, compat.Rename, compat.Delete)
 	if opts.RecentDays > 0 {
 		memories, err := repo.RecentUserMemory(ctx, time.Now().AddDate(0, 0, -opts.RecentDays), 5000, 4000)
 		if err != nil {
@@ -124,9 +133,17 @@ func Check(ctx context.Context, opts Options) error {
 	return nil
 }
 
-func resolveDBPath(path string) (string, error) {
+func resolveDBPath(ctx context.Context, path string, command string) (string, error) {
 	if env := os.Getenv("LAZYOCS_DB"); path == "" && env != "" {
 		path = env
+	}
+	if path == "" {
+		if discovered := discoverOpenCodeDB(ctx, command); discovered != "" {
+			path = discovered
+		}
+	}
+	if path == "" {
+		path = openCodeDBOverride()
 	}
 	if path == "" {
 		home, err := os.UserHomeDir()
@@ -152,6 +169,39 @@ func resolveDBPath(path string) (string, error) {
 		return "", fmt.Errorf("database path is a directory: %s", abs)
 	}
 	return abs, nil
+}
+
+func discoverOpenCodeDB(ctx context.Context, command string) string {
+	if command == "" {
+		command = "opencode"
+	}
+	commandCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	output, err := exec.CommandContext(commandCtx, command, "debug", "paths", "db").Output()
+	if err != nil {
+		return ""
+	}
+	path := strings.TrimSpace(string(output))
+	if path == "" || strings.ContainsAny(path, "\r\n") {
+		return ""
+	}
+	return path
+}
+
+func openCodeDBOverride() string {
+	value := strings.TrimSpace(os.Getenv("OPENCODE_DB"))
+	if value == "" || filepath.IsAbs(value) {
+		return value
+	}
+	dataHome := os.Getenv("XDG_DATA_HOME")
+	if dataHome == "" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return ""
+		}
+		dataHome = filepath.Join(home, ".local", "share")
+	}
+	return filepath.Join(dataHome, "opencode", value)
 }
 
 func expandHome(path string) (string, error) {

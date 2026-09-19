@@ -47,7 +47,7 @@
 
 发布产物是真正的原生 `.exe`，不需要安装 Go。需要全局调用时，把所在目录加入 `PATH`。Windows 构建目前属于实验支持且尚未签名；session ID 复制使用系统 `clip.exe`，失败时状态栏仍会显示可手动复制的 ID。
 
-OpenCode 默认数据库位于 `%USERPROFILE%\.local\share\opencode\opencode.db`。如果你的安装位置不同，请传入 `--db`。
+lazyocs 通常通过 `opencode debug paths db` 自动发现数据库。如果你的安装位置不同，请传入 `--db`。
 
 ### macOS
 
@@ -142,6 +142,8 @@ lazyocs --version
 ```
 
 命令行参数优先于配置文件。默认配置路径为 `~/.config/lazyocs/config.toml`，首次运行时自动创建，已有文件永远不会被覆盖。
+
+当 `db` 留空时，lazyocs 会通过 `opencode debug paths db` 获取当前数据库路径，从而兼容 release channel 和 `OPENCODE_DB`；如果无法获取，再回退到 `OPENCODE_DB` 和标准路径 `~/.local/share/opencode/opencode.db`。`--db`、配置项 `db` 和 `LAZYOCS_DB` 仍作为显式覆盖。
 
 最小配置示例：
 

@@ -47,7 +47,7 @@ Download and extract the matching ZIP, then run it from PowerShell or Windows Te
 
 The release is a real native `.exe`; no Go installation is required. Add its directory to `PATH` if you want to call `lazyocs` globally. Windows builds are currently experimental and unsigned. Session ID copying uses the system `clip.exe`; failures still show the ID for manual copying.
 
-OpenCode stores its database at `%USERPROFILE%\.local\share\opencode\opencode.db`. Pass `--db` if your installation uses another path.
+lazyocs normally discovers the database through `opencode debug paths db`. Pass `--db` if your installation uses another path.
 
 ### macOS
 
@@ -142,6 +142,8 @@ lazyocs --version
 ```
 
 CLI flags override config file values. The default config is `~/.config/lazyocs/config.toml`; it is created on first run and never overwritten.
+
+When `db` is empty, lazyocs asks OpenCode for the active database path with `opencode debug paths db`, which respects release channels and `OPENCODE_DB`. It then falls back to `OPENCODE_DB` and the standard `~/.local/share/opencode/opencode.db` path. `--db`, config `db`, and `LAZYOCS_DB` remain explicit overrides.
 
 Minimal configuration:
 

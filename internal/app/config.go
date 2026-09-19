@@ -14,10 +14,10 @@ import (
 )
 
 const DefaultConfigTOML = `# lazyocs configuration
-# OpenCode SQLite database path. Default: ~/.local/share/opencode/opencode.db.
-# Leave empty to use the default path.
-# OpenCode SQLite 数据库路径。默认值：~/.local/share/opencode/opencode.db。
-# 留空表示使用默认路径。
+# OpenCode SQLite database path. Leave empty to discover it with opencode debug paths db.
+# Falls back to OPENCODE_DB and ~/.local/share/opencode/opencode.db.
+# OpenCode SQLite 数据库路径。留空时通过 opencode debug paths db 自动发现。
+# 无法发现时回退到 OPENCODE_DB 和 ~/.local/share/opencode/opencode.db。
 db = ""
 # UI language: auto, en, or zh-CN. Default: auto.
 # 界面语言：auto、en 或 zh-CN。默认值：auto。
