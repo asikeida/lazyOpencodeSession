@@ -1,3 +1,4 @@
 /lazyocs
 dist/
 *.log
+/opcode-summary/

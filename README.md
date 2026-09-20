@@ -258,8 +258,6 @@ go vet ./...
 go test ./internal/opencode ./internal/tui -run '^$' -bench . -benchmem
 ```
 
-Technical architecture and engineering notes are in [`opcode-summary/`](./opcode-summary/README.md).
-
 ## Release Process
 
 Pushing a semantic-version tag triggers GitHub Actions and GoReleaser:

@@ -258,8 +258,6 @@ go vet ./...
 go test ./internal/opencode ./internal/tui -run '^$' -bench . -benchmem
 ```
 
-架构和工程说明位于 [`opcode-summary/`](./opcode-summary/README.md)。
-
 ## 发布流程
 
 推送语义化版本 tag 后，GitHub Actions 和 GoReleaser 会自动执行发布：
