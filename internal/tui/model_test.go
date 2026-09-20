@@ -137,7 +137,12 @@ func TestTitleDialogUsesLegendAndStableWidth(t *testing.T) {
 		titleCursor: len([]rune("untitled")),
 	}
 	dialog := model.renderTitleDialog()
-	if !strings.Contains(ansi.Strip(dialog), "Save as") || !strings.Contains(ansi.Strip(dialog), "✎ untitled") {
+	plain := ansi.Strip(dialog)
+	plainLines := strings.Split(plain, "\n")
+	if !strings.HasPrefix(plainLines[0], "╭") || !strings.HasPrefix(plainLines[len(plainLines)-1], "╰") {
+		t.Fatalf("title dialog does not use rounded corners: %q", plain)
+	}
+	if !strings.Contains(plain, "Save as") || !strings.Contains(plain, "✎ untitled") {
 		t.Fatalf("title dialog is missing its legend or input: %q", ansi.Strip(dialog))
 	}
 	if got := len(strings.Split(dialog, "\n")); got != 4 {
@@ -148,6 +153,18 @@ func TestTitleDialogUsesLegendAndStableWidth(t *testing.T) {
 		if got := lipgloss.Width(line); got != wantWidth {
 			t.Fatalf("dialog line %d has width %d, want %d", i, got, wantWidth)
 		}
+	}
+}
+
+func TestRoundedPanelStyleUsesRoundedCorners(t *testing.T) {
+	model := Model{
+		styles: NewStyles(),
+		texts:  NewTexts("en"),
+		ui:     UIConfig{BorderStyle: "rounded"},
+	}
+	lines := strings.Split(ansi.Strip(model.renderSessions(40, 8)), "\n")
+	if !strings.HasPrefix(lines[0], "╭") || !strings.HasPrefix(lines[len(lines)-1], "╰") {
+		t.Fatalf("session panel does not use rounded corners: %q", strings.Join(lines, "\n"))
 	}
 }
 
@@ -252,10 +269,10 @@ func TestHelpUsesSharedDialogFrame(t *testing.T) {
 	}
 	dialog := model.renderHelp()
 	lines := strings.Split(ansi.Strip(dialog), "\n")
-	if !strings.Contains(lines[0], model.texts.HelpTitle) || !strings.HasPrefix(lines[0], "┌") {
+	if !strings.Contains(lines[0], model.texts.HelpTitle) || !strings.HasPrefix(lines[0], "╭") {
 		t.Fatalf("help does not use a top border legend: %q", lines[0])
 	}
-	if !strings.HasPrefix(lines[len(lines)-1], "└") {
+	if !strings.HasPrefix(lines[len(lines)-1], "╰") {
 		t.Fatalf("help does not use the shared dialog footer: %q", lines[len(lines)-1])
 	}
 	for i, line := range strings.Split(dialog, "\n") {
@@ -287,7 +304,7 @@ func TestDeleteDialogShowsTargetAndConfirmationKeys(t *testing.T) {
 		sessions: []opencode.Session{{ID: "ses_example", Title: "Important session"}},
 	}
 	dialog := ansi.Strip(model.renderDeleteDialog())
-	if !strings.HasPrefix(dialog, "┌") {
+	if !strings.HasPrefix(dialog, "╭") {
 		t.Fatalf("delete dialog does not use the shared frame: %q", dialog)
 	}
 	for _, want := range []string{"Delete session", "Important session", "ses_example", "y / Enter delete"} {

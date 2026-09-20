@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Changed
+
+- Use rounded corners for help, title-edit, and delete confirmation dialogs.
+
 ## [0.1.3] - 2026-09-19
 
 ### Added

@@ -143,7 +143,7 @@ func (m Model) renderDialog(title string, body []string, width int) string {
 		right := max(0, innerWidth-lipgloss.Width(legend)-left)
 		topContent = strings.Repeat("─", left) + legend + strings.Repeat("─", right)
 	}
-	top := borderStyle.Render("┌" + topContent + "┐")
+	top := borderStyle.Render("╭" + topContent + "╮")
 	lines := []string{top}
 	for _, line := range body {
 		content := strings.Repeat(" ", innerWidth)
@@ -155,7 +155,7 @@ func (m Model) renderDialog(title string, body []string, width int) string {
 		cell := m.styles.ModalBG.Inline(true).Render(content)
 		lines = append(lines, borderStyle.Render("│")+cell+borderStyle.Render("│"))
 	}
-	lines = append(lines, borderStyle.Render("└"+strings.Repeat("─", innerWidth)+"┘"))
+	lines = append(lines, borderStyle.Render("╰"+strings.Repeat("─", innerWidth)+"╯"))
 	return strings.Join(lines, "\n")
 }
 
