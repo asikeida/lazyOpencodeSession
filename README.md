@@ -251,6 +251,12 @@ See [COMPATIBILITY.md](./COMPATIBILITY.md) for the exact capability matrix.
 
 ## Development
 
+Run the TUI locally without building:
+
+```bash
+go run ./cmd/lazyocs
+```
+
 ```bash
 go test ./...
 go test -race ./...

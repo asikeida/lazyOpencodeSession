@@ -251,6 +251,12 @@ ALL_PROXY = "http://127.0.0.1:7897"
 
 ## 开发
 
+开发期间免构建本地运行：
+
+```bash
+go run ./cmd/lazyocs
+```
+
 ```bash
 go test ./...
 go test -race ./...
